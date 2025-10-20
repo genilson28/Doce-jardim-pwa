@@ -913,44 +913,61 @@ ITENS
     },
 
     mostrarModalFecharConta: function(mesa) {
-        this.mesaAtual = mesa;
-        
-        // Carregar dados da comanda
-        if (mesa.pedido_atual) {
-            try {
-                this.carrinho = JSON.parse(mesa.pedido_atual);
-            } catch (e) {
-                this.carrinho = [];
-            }
+    this.mesaAtual = mesa;
+    
+    // Carregar dados da comanda
+    if (mesa.pedido_atual) {
+        try {
+            this.carrinho = JSON.parse(mesa.pedido_atual);
+        } catch (e) {
+            this.carrinho = [];
         }
+    }
+    
+    const total = mesa.valor_total || 0;
+    
+    document.getElementById('modalMesaNumero').textContent = mesa.numero;
+    document.getElementById('modalSubtotal').textContent = total.toFixed(2);
+    document.getElementById('modalTotalConta').textContent = total.toFixed(2);
+    document.getElementById('modalTotalFinal').textContent = total.toFixed(2);
+    
+    const modal = document.getElementById('modalFecharConta');
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    
+    // 🔥 CORREÇÃO PARA iOS - Usar addEventListener
+    const tipoDesconto = document.getElementById('modalTipoDesconto');
+    const valorDesconto = document.getElementById('modalValorDesconto');
+    
+    // Remover listeners antigos (se existirem)
+    const tipoDescontoNovo = tipoDesconto.cloneNode(true);
+    const valorDescontoNovo = valorDesconto.cloneNode(true);
+    tipoDesconto.parentNode.replaceChild(tipoDescontoNovo, tipoDesconto);
+    valorDesconto.parentNode.replaceChild(valorDescontoNovo, valorDesconto);
+    
+    // Adicionar novos event listeners
+    document.getElementById('modalTipoDesconto').addEventListener('change', () => {
+        const tipo = document.getElementById('modalTipoDesconto').value;
+        const valor = document.getElementById('modalValorDesconto');
         
-        const total = mesa.valor_total || 0;
-        
-        document.getElementById('modalMesaNumero').textContent = mesa.numero;
-        document.getElementById('modalSubtotal').textContent = total.toFixed(2);
-        document.getElementById('modalTotalConta').textContent = total.toFixed(2);
-        document.getElementById('modalTotalFinal').textContent = total.toFixed(2);
-        
-        const modal = document.getElementById('modalFecharConta');
-        modal.classList.add('active');
-        modal.style.display = 'flex';
-        
-        // Event listener para desconto
-        const tipoDesconto = document.getElementById('modalTipoDesconto');
-        const valorDesconto = document.getElementById('modalValorDesconto');
-        
-        tipoDesconto.onchange = () => {
-            if (tipoDesconto.value === 'nenhum') {
-                valorDesconto.style.display = 'none';
-                valorDesconto.value = '';
-            } else {
-                valorDesconto.style.display = 'block';
-            }
-            this.calcularTotalModal();
-        };
-        
-        valorDesconto.oninput = () => this.calcularTotalModal();
-    },
+        if (tipo === 'nenhum') {
+            valor.style.display = 'none';
+            valor.value = '';
+        } else {
+            valor.style.display = 'block';
+            setTimeout(() => valor.focus(), 100);
+        }
+        this.calcularTotalModal();
+    });
+    
+    document.getElementById('modalValorDesconto').addEventListener('input', () => {
+        this.calcularTotalModal();
+    });
+    
+    document.getElementById('modalValorDesconto').addEventListener('touchstart', (e) => {
+        e.target.focus();
+    });
+},
 
     calcularTotalModal: function() {
         const subtotal = this.mesaAtual.valor_total || 0;
@@ -2679,19 +2696,29 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    const tipoDesconto = document.getElementById('tipoDesconto');
-    if (tipoDesconto) {
-        tipoDesconto.addEventListener('change', function() {
-            const valorDesconto = document.getElementById('valorDesconto');
-            if (this.value === 'nenhum') {
-                valorDesconto.style.display = 'none';
-                valorDesconto.value = '';
-            } else {
-                valorDesconto.style.display = 'block';
-            }
-            app.calcularTotal();
-        });
-    }
+   const tipoDesconto = document.getElementById('tipoDesconto');
+const valorDesconto = document.getElementById('valorDesconto');
+
+if (tipoDesconto && valorDesconto) {
+    tipoDesconto.addEventListener('change', function() {
+        if (this.value === 'nenhum') {
+            valorDesconto.style.display = 'none';
+            valorDesconto.value = '';
+        } else {
+            valorDesconto.style.display = 'block';
+            setTimeout(() => valorDesconto.focus(), 100);
+        }
+        app.calcularTotal();
+    });
+    
+    valorDesconto.addEventListener('input', function() {
+        app.calcularTotal();
+    });
+    
+    valorDesconto.addEventListener('touchstart', function(e) {
+        e.target.focus();
+    });
+}
     
     window.addEventListener('click', function(event) {
         const modalEditar = document.getElementById('modalEditarProduto');
