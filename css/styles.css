@@ -1394,3 +1394,35 @@ select:focus:not(:focus-visible) {
         font-size: 14px;
     }
 }
+/* ==================== CORREÇÕES PARA iOS ==================== */
+input[type="number"],
+select {
+    -webkit-appearance: none;
+    appearance: none;
+    touch-action: manipulation;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+select {
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(200, 168, 216, 0.3);
+}
+
+/* Melhorar área de toque no mobile */
+@media (max-width: 768px) {
+    select, 
+    input[type="number"],
+    input[type="text"],
+    input[type="password"] {
+        min-height: 44px;
+        font-size: 16px !important;
+    }
+}
+
+/* Garantir que modais sejam clicáveis */
+.modal-content input,
+.modal-content select {
+    position: relative;
+    z-index: 1001;
+}
