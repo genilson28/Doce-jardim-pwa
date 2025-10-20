@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Ícones - Doce Jardim</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .canvas-container {
+            margin: 20px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        .canvas-item {
+            text-align: center;
+        }
+        canvas {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            display: block;
+            margin: 10px auto;
+        }
+        button {
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .instructions {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍰 Gerador de Ícones - Doce Jardim</h1>
+        <p>Clique nos botões abaixo para baixar cada ícone:</p>
+        
+        <div class="canvas-container" id="canvasContainer"></div>
+        
+        <div class="instructions">
+            <h3>📋 Instruções:</h3>
+            <ol>
+                <li>Clique em cada botão "Baixar" para salvar o ícone</li>
+                <li>Salve cada ícone na pasta <strong>icons</strong> do seu projeto</li>
+                <li>Mantenha o nome exato de cada arquivo (ex: icon-72x72.png)</li>
+                <li>Depois que salvar todos, pode fechar esta página</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+        const container = document.getElementById('canvasContainer');
+
+        sizes.forEach(size => {
+            // Criar container para cada tamanho
+            const item = document.createElement('div');
+            item.className = 'canvas-item';
+            
+            // Criar canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Desenhar fundo gradiente
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#FF6B6B');
+            gradient.addColorStop(1, '#FF8E53');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Desenhar emoji
+            ctx.font = `${size * 0.6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🍰', size / 2, size / 2);
+            
+            // Criar label
+            const label = document.createElement('p');
+            label.textContent = `${size}x${size}px`;
+            label.style.margin = '5px 0';
+            label.style.fontSize = '0.9em';
+            label.style.color = '#666';
+            
+            // Criar botão de download
+            const btn = document.createElement('button');
+            btn.textContent = `⬇️ Baixar`;
+            btn.onclick = () => {
+                const link = document.createElement('a');
+                link.download = `icon-${size}x${size}.png`;
+                link.href = canvas.toDataURL();
+                link.click();
+            };
+            
+            // Adicionar elementos
+            item.appendChild(label);
+            item.appendChild(canvas);
+            item.appendChild(btn);
+            container.appendChild(item);
+        });
+    </script>
+</body>
+</html>
