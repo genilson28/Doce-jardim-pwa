@@ -1,39 +1,28 @@
-// ==================== SERVICE WORKER - DOCE JARDIM ====================
-const CACHE_NAME = 'doce-jardim-v1.0.5';
-
-// Apenas arquivos ESSENCIAIS que sabemos que existem
-const ESSENTIAL_ASSETS = [
-    './',
-    './index.html'
-];
-
-self.addEventListener('install', (event) => {
-    console.log('🔧 Service Worker: Instalação iniciada');
-    
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('📦 Cache aberto, adicionando recursos essenciais...');
-                // Cache apenas os arquivos críticos
-                return cache.addAll(ESSENTIAL_ASSETS).catch(error => {
-                    console.warn('Algum recurso não pôde ser cacheado:', error);
-                });
-            })
-            .then(() => {
-                console.log('✅ Instalação concluída');
-                return self.skipWaiting();
-            })
-    );
-});
-
-self.addEventListener('fetch', (event) => {
-    // Apenas intercepta requisições do próprio domínio
-    if (event.request.url.startsWith(self.location.origin)) {
-        event.respondWith(
-            caches.match(event.request)
-                .then(response => response || fetch(event.request))
-        );
-    }
-});
-
-console.log('🍰 Service Worker carregado');
+// ==================== LISTENER PARA ATUALIZAÇÃO DO SERVICE WORKER ====================
+// Verifica se o Service Worker enviou uma mensagem sobre uma nova versão
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'NEW_VERSION_AVAILABLE') {
+            console.log('🎉 Nova versão do app detectada!');
+            
+            // Cria um toast especial para atualização
+            const container = document.getElementById('toastContainer');
+            if (container) {
+                const toast = document.createElement('div');
+                toast.className = 'toast info';
+                toast.innerHTML = `
+                    🎉 Nova versão disponível! 
+                    <button onclick="window.location.reload()" style="margin-left: 10px; padding: 5px 10px; border: none; border-radius: 5px; background: white; color: #2196F3; cursor: pointer; font-weight: bold;">Atualizar</button>
+                `;
+                
+                container.appendChild(toast);
+                
+                // Remove o toast após 30 segundos para não poluir a tela
+                setTimeout(() => {
+                    toast.classList.add('fade-out');
+                    setTimeout(() => toast.remove(), 300);
+                }, 30000);
+            }
+        }
+    });
+}
