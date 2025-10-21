@@ -937,10 +937,12 @@ body {
 @media (max-width: 768px) {
     .pdv-container { grid-template-columns: 1fr; }
     .dashboard-grid { grid-template-columns: 1fr; }
-     .tabela-estoque td strong {
-        word-wrap: break-word; /* Quebra palavras muito longas se necessário */
-        white-space: normal;  /* Garante que o texto possa quebrar de linha */
-     }
+      .tabela-estoque td {
+        max-width: 100%;          /* Garante que a célula não ultrapasse a largura da tela */
+        overflow-wrap: break-word; /* Padrão moderno para quebrar palavras longas */
+        word-wrap: break-word;     /* Compatibilidade com navegadores antigos */
+        white-space: normal;       /* Permite que o texto quebre de linha */
+    }
     .login-header h1 { font-size: 2em; }
     .app-header h1 { font-size: 1.4em; }
     .dashboard-container h2 { font-size: 1.8em; }
@@ -976,5 +978,6 @@ body {
         font-size: 16px !important;
     }
 }
+
 
 
