@@ -937,6 +937,9 @@ body {
 @media (max-width: 768px) {
     .pdv-container { grid-template-columns: 1fr; }
     .dashboard-grid { grid-template-columns: 1fr; }
+     .tabela-estoque td strong {
+        word-wrap: break-word; /* Quebra palavras muito longas se necessário */
+        white-space: normal;  /* Garante que o texto possa quebrar de linha */
     .login-header h1 { font-size: 2em; }
     .app-header h1 { font-size: 1.4em; }
     .dashboard-container h2 { font-size: 1.8em; }
@@ -972,3 +975,4 @@ body {
         font-size: 16px !important;
     }
 }
+
