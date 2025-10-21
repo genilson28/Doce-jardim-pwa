@@ -1,9 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <!-- No <head> do seu index.html, adicione: -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Sistema de PDV e Controle de Estoque - Doce Jardim">
@@ -12,10 +9,20 @@
     <meta name="keywords" content="pdv, estoque, vendas, controle">
     
     <title>Doce Jardim - Sistema PDV</title>
-    
-    <!-- Fontes do Google -->
+
+    <!-- MELHORIA: Otimização de Conexão (preconnect) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://utykuriccvvhitlrdqcw.supabase.co">
+    
+    <!-- MELHORIA: Tags Open Graph para melhor compartilhamento -->
+    <meta property="og:title" content="Doce Jardim - Sistema PDV">
+    <meta property="og:description" content="Sistema moderno e eficiente para PDV e controle de estoque.">
+    <meta property="og:image" content="./icons/icon-192x192.png">
+    <meta property="og:url" content="#">
+    <meta property="og:type" content="website">
+    
+    <!-- Fontes do Google -->
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Comfortaa:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="css/styles.css">
@@ -26,21 +33,23 @@
 <body>
     <!-- TELA DE LOGIN -->
     <div id="loginScreen" class="screen active">
-        <div class="login-container">
-            <div class="login-header">
-                <h1>doce jardim</h1>
-                <p>Sistema de PDV e Estoque</p>
+        <main>
+            <div class="login-container">
+                <div class="login-header">
+                    <h1>doce jardim</h1>
+                    <p>Sistema de PDV e Estoque</p>
+                </div>
+                <div class="login-form">
+                    <label for="loginUser" class="sr-only">Usuário</label>
+                    <input type="text" id="loginUser" placeholder="Usuário" autocomplete="username">
+                    
+                    <label for="loginPass" class="sr-only">Senha</label>
+                    <input type="password" id="loginPass" placeholder="Senha" autocomplete="current-password">
+                    
+                    <button onclick="app.login()" class="btn-primary">Entrar</button>
+                </div>
             </div>
-            <div class="login-form">
-    <label for="loginUser" class="sr-only">Usuário</label>
-    <input type="text" id="loginUser" placeholder="Usuário" autocomplete="username">
-    
-    <label for="loginPass" class="sr-only">Senha</label>
-    <input type="password" id="loginPass" placeholder="Senha" autocomplete="current-password">
-    
-    <button onclick="app.login()" class="btn-primary">Entrar</button>
-</div>
-        </div>
+        </main>
     </div>
 
     <!-- TELA PRINCIPAL (DASHBOARD) -->
@@ -50,51 +59,53 @@
             <button onclick="app.logout()" class="btn-logout" aria-label="Sair do sistema">Sair</button>
         </header>
 
-        <div class="dashboard-container">
-            <h2>Menu Principal</h2>
-            
-            <div class="dashboard-grid">
-                <div class="dashboard-card" onclick="app.showScreen('mesasScreen')" role="button" tabindex="0">
-                    <div class="card-icon">🪑</div>
-                    <h3>Mesas</h3>
-                    <p>Gerenciar comandas</p>
+        <main>
+            <div class="dashboard-container">
+                <h2>Menu Principal</h2>
+                
+                <div class="dashboard-grid">
+                    <div class="dashboard-card" onclick="app.showScreen('mesasScreen')" role="button" tabindex="0">
+                        <div class="card-icon">🪑</div>
+                        <h3>Mesas</h3>
+                        <p>Gerenciar comandas</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('pdvScreen')" role="button" tabindex="0">
+                        <div class="card-icon">💰</div>
+                        <h3>PDV Direto</h3>
+                        <p>Venda rápida</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('produtosScreen')" role="button" tabindex="0">
+                        <div class="card-icon">📝</div>
+                        <h3>Produtos</h3>
+                        <p>Cadastrar produtos</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('estoqueScreen')" role="button" tabindex="0">
+                        <div class="card-icon">📦</div>
+                        <h3>Estoque</h3>
+                        <p>Controle de estoque</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('relatoriosScreen')" role="button" tabindex="0">
+                        <div class="card-icon">📊</div>
+                        <h3>Relatórios</h3>
+                        <p>Vendas e estatísticas</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('usuariosScreen')" role="button" tabindex="0" id="cardUsuarios">
+                        <div class="card-icon">👥</div>
+                        <h3>Usuários</h3>
+                        <p>Gerenciar usuários</p>
+                    </div>
                 </div>
 
-                <div class="dashboard-card" onclick="app.showScreen('pdvScreen')" role="button" tabindex="0">
-                    <div class="card-icon">💰</div>
-                    <h3>PDV Direto</h3>
-                    <p>Venda rápida</p>
-                </div>
-
-                <div class="dashboard-card" onclick="app.showScreen('produtosScreen')" role="button" tabindex="0">
-                    <div class="card-icon">📝</div>
-                    <h3>Produtos</h3>
-                    <p>Cadastrar produtos</p>
-                </div>
-
-                <div class="dashboard-card" onclick="app.showScreen('estoqueScreen')" role="button" tabindex="0">
-                    <div class="card-icon">📦</div>
-                    <h3>Estoque</h3>
-                    <p>Controle de estoque</p>
-                </div>
-
-                <div class="dashboard-card" onclick="app.showScreen('relatoriosScreen')" role="button" tabindex="0">
-                    <div class="card-icon">📊</div>
-                    <h3>Relatórios</h3>
-                    <p>Vendas e estatísticas</p>
-                </div>
-
-                <div class="dashboard-card" onclick="app.showScreen('usuariosScreen')" role="button" tabindex="0" id="cardUsuarios">
-                    <div class="card-icon">👥</div>
-                    <h3>Usuários</h3>
-                    <p>Gerenciar usuários</p>
-                </div>
+                <button id="installBtnDash" class="btn-install-dash hidden" onclick="app.installApp()">
+                    📱 Instalar App no Celular
+                </button>
             </div>
-
-            <button id="installBtnDash" class="btn-install-dash hidden" onclick="app.installApp()">
-                📱 Instalar App no Celular
-            </button>
-        </div>
+        </main>
     </div>
 
     <!-- TELA MESAS -->
@@ -104,15 +115,17 @@
             <h1>🪑 Gerenciamento de Mesas</h1>
         </header>
 
-        <div class="mesas-container">
-            <div class="mesas-filtros">
-                <button onclick="app.filtrarMesas('todas')" class="btn-filtro active" id="filtroTodasMesas">Todas</button>
-                <button onclick="app.filtrarMesas('ocupadas')" class="btn-filtro" id="filtroOcupadas">Ocupadas</button>
-                <button onclick="app.filtrarMesas('livres')" class="btn-filtro" id="filtroLivres">Livres</button>
-            </div>
+        <main>
+            <div class="mesas-container">
+                <div class="mesas-filtros">
+                    <button onclick="app.filtrarMesas('todas')" class="btn-filtro active" id="filtroTodasMesas">Todas</button>
+                    <button onclick="app.filtrarMesas('ocupadas')" class="btn-filtro" id="filtroOcupadas">Ocupadas</button>
+                    <button onclick="app.filtrarMesas('livres')" class="btn-filtro" id="filtroLivres">Livres</button>
+                </div>
 
-            <div id="listaMesas" class="mesas-grid"></div>
-        </div>
+                <div id="listaMesas" class="mesas-grid"></div>
+            </div>
+        </main>
     </div>
 
     <!-- TELA COMANDA DA MESA -->
@@ -122,48 +135,50 @@
             <h1 id="comandaTitulo">📋 Mesa 1</h1>
         </header>
 
-        <div class="pdv-container">
-            <!-- NOVA SEÇÃO DE PESQUISA E CATEGORIAS PARA MESAS -->
-            <div class="search-section">
-               <input type="text" id="pesquisaMesas" placeholder="🔍 Pesquisar produtos..." 
-       oninput="app.pesquisarProdutosMesas()" class="pesquisa-produto mesas">
-            </div>
-            
-            <div class="categorias-container">
-                <div id="categoriasMesas" class="categorias-buttons">
-                    <!-- Categorias serão inseridas aqui via JavaScript -->
-                </div>
-            </div>
-
-            <div class="pdv-produtos">
-                <h3>Adicionar Produtos</h3>
-                <div id="listaProdutosComanda" class="produtos-grid"></div>
-                
-                <!-- NOVA PAGINAÇÃO PARA MESAS -->
-                <div id="paginacaoMesas" class="paginacao" style="display: none;">
-                    <!-- Botões de paginação serão inseridos aqui -->
-                </div>
-            </div>
-
-            <div class="pdv-carrinho">
-                <h3>Itens da Comanda</h3>
-                <div id="comandaItens" class="carrinho-lista">
-                    <div class="empty-state">Comanda vazia</div>
+        <main>
+            <div class="pdv-container">
+                <!-- NOVA SEÇÃO DE PESQUISA E CATEGORIAS PARA MESAS -->
+                <div class="search-section">
+                   <input type="text" id="pesquisaMesas" placeholder="🔍 Pesquisar produtos..." 
+           oninput="app.pesquisarProdutosMesas()" class="pesquisa-produto mesas">
                 </div>
                 
-                <div class="comanda-info">
-                    <p><strong>Aberta em:</strong> <span id="comandaHorario">--:--</span></p>
-                    <p><strong>Garçom:</strong> <span id="comandaGarcom">Admin</span></p>
+                <div class="categorias-container">
+                    <div id="categoriasMesas" class="categorias-buttons">
+                        <!-- Categorias serão inseridas aqui via JavaScript -->
+                    </div>
                 </div>
 
-                <div class="carrinho-total">
-                    <h2>Total: R$ <span id="comandaTotal">0.00</span></h2>
+                <div class="pdv-produtos">
+                    <h3>Adicionar Produtos</h3>
+                    <div id="listaProdutosComanda" class="produtos-grid"></div>
                     
-                    <button onclick="app.imprimirComanda()" class="btn-secondary">🖨️ Imprimir Comanda</button>
-                    <button onclick="app.finalizarComanda()" class="btn-primary btn-large">Fechar Conta</button>
+                    <!-- NOVA PAGINAÇÃO PARA MESAS -->
+                    <div id="paginacaoMesas" class="paginacao" style="display: none;">
+                        <!-- Botões de paginação serão inseridos aqui -->
+                    </div>
+                </div>
+
+                <div class="pdv-carrinho">
+                    <h3>Itens da Comanda</h3>
+                    <div id="comandaItens" class="carrinho-lista">
+                        <div class="empty-state">Comanda vazia</div>
+                    </div>
+                    
+                    <div class="comanda-info">
+                        <p><strong>Aberta em:</strong> <span id="comandaHorario">--:--</span></p>
+                        <p><strong>Garçom:</strong> <span id="comandaGarcom">Admin</span></p>
+                    </div>
+
+                    <div class="carrinho-total">
+                        <h2>Total: R$ <span id="comandaTotal">0.00</span></h2>
+                        
+                        <button onclick="app.imprimirComanda()" class="btn-secondary">🖨️ Imprimir Comanda</button>
+                        <button onclick="app.finalizarComanda()" class="btn-primary btn-large">Fechar Conta</button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- TELA PDV DIRETO -->
@@ -173,71 +188,74 @@
             <h1>💰 PDV - Venda Direta</h1>
         </header>
 
-        <div class="pdv-container">
-            <div class="pdv-produtos">
-                <h3>Produtos Disponíveis</h3>
-                
-                <!-- CAMPO DE PESQUISA -->
-                <div class="search-section">
-                    <input type="text" id="pesquisaPDV" placeholder="🔍 Pesquisar produto..." 
-       oninput="app.pesquisarProdutosPDV()" class="pesquisa-produto pdv">
-                </div>
-                
-                <!-- NOVAS CATEGORIAS COMPLETAS -->
-                <div class="categorias-container">
-                    <div id="categoriasPDV" class="categorias-buttons">
-                        <!-- Categorias serão inseridas aqui via JavaScript -->
-                    </div>
-                </div>
-                
-                <div id="listaProdutosPDV" class="produtos-grid">
-                    <div class="loading">Carregando produtos...</div>
-                </div>
-                
-                <!-- NOVA PAGINAÇÃO PARA PDV -->
-                <div id="paginacaoPDV" class="paginacao" style="display: none;">
-                    <!-- Botões de paginação serão inseridos aqui -->
-                </div>
-            </div>
-
-            <div class="pdv-carrinho">
-                <h3>Carrinho</h3>
-                <div id="carrinhoItens" class="carrinho-lista">
-                    <div class="empty-state">Carrinho vazio</div>
-                </div>
-                
-                <div class="carrinho-desconto">
-                    <label for="tipoDesconto">Desconto:</label>
-                    <select id="tipoDesconto">
-                        <option value="nenhum">Sem desconto</option>
-                        <option value="percentual">% Percentual</option>
-                        <option value="reais">R$ Reais</option>
-                    </select>
-                    <input type="number" id="valorDesconto" placeholder="0" min="0" step="0.01" style="display: none;" aria-label="Valor do desconto">
-                </div>
-
-                <div class="carrinho-total">
-                    <div class="total-detalhes">
-                        <p>Subtotal: R$ <span id="subtotalCarrinho">0.00</span></p>
-                        <p class="desconto-aplicado" id="descontoAplicado" style="display: none;">Desconto: -R$ <span id="valorDescontoAplicado">0.00</span></p>
-                        <h2>Total: R$ <span id="carrinhoTotal">0.00</span></h2>
+        <main>
+            <div class="pdv-container">
+                <div class="pdv-produtos">
+                    <h3>Produtos Disponíveis</h3>
+                    
+                    <!-- CAMPO DE PESQUISA -->
+                    <div class="search-section">
+                        <input type="text" id="pesquisaPDV" placeholder="🔍 Pesquisar produto..." 
+               oninput="app.pesquisarProdutosPDV()" class="pesquisa-produto pdv">
                     </div>
                     
-                    <div class="forma-pagamento">
-                        <label for="formaPagamento">Forma de Pagamento:</label>
-                        <select id="formaPagamento">
-                            <option value="dinheiro">💵 Dinheiro</option>
-                            <option value="pix">📱 PIX</option>
-                            <option value="credito">💳 Cartão Crédito</option>
-                            <option value="debito">💳 Cartão Débito</option>
+                    <!-- NOVAS CATEGORIAS COMPLETAS -->
+                    <div class="categorias-container">
+                        <div id="categoriasPDV" class="categorias-buttons">
+                            <!-- Categorias serão inseridas aqui via JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <div id="listaProdutosPDV" class="produtos-grid">
+                        <div class="loading">Carregando produtos...</div>
+                    </div>
+                    
+                    <!-- NOVA PAGINAÇÃO PARA PDV -->
+                    <div id="paginacaoPDV" class="paginacao" style="display: none;">
+                        <!-- Botões de paginação serão inseridos aqui -->
+                    </div>
+                </div>
+
+                <div class="pdv-carrinho">
+                    <h3>Carrinho</h3>
+                    <div id="carrinhoItens" class="carrinho-lista">
+                        <div class="empty-state">Carrinho vazio</div>
+                    </div>
+                    
+                    <div class="carrinho-desconto">
+                        <label for="tipoDesconto">Desconto:</label>
+                        <select id="tipoDesconto">
+                            <option value="nenhum">Sem desconto</option>
+                            <option value="percentual">% Percentual</option>
+                            <option value="reais">R$ Reais</option>
                         </select>
+                        <input type="number" id="valorDesconto" placeholder="0" min="0" step="0.01" style="display: none;" aria-label="Valor do desconto">
                     </div>
 
-                    <button onclick="app.finalizarVenda()" class="btn-primary btn-large">Finalizar Venda</button>
-                    <button onclick="app.limparCarrinho()" class="btn-secondary">Limpar Carrinho</button>
+                    <div class="carrinho-total">
+                        <div class="total-detalhes">
+                            <p>Subtotal: R$ <span id="subtotalCarrinho">0.00</span></p>
+                            <p class="desconto-aplicado" id="descontoAplicado" style="display: none;">Desconto: -R$ <span id="valorDescontoAplicado">0.00</span></p>
+                            <h2>Total: R$ <span id="carrinhoTotal">0.00</span></h2>
+                        </div>
+                        
+                        <!-- MELHORIA: Adicionando label explícito para acessibilidade -->
+                        <div class="forma-pagamento">
+                            <label for="formaPagamento">Forma de Pagamento:</label>
+                            <select id="formaPagamento">
+                                <option value="dinheiro">💵 Dinheiro</option>
+                                <option value="pix">📱 PIX</option>
+                                <option value="credito">💳 Cartão Crédito</option>
+                                <option value="debito">💳 Cartão Débito</option>
+                            </select>
+                        </div>
+
+                        <button onclick="app.finalizarVenda()" class="btn-primary btn-large">Finalizar Venda</button>
+                        <button onclick="app.limparCarrinho()" class="btn-secondary">Limpar Carrinho</button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- TELA PRODUTOS -->
@@ -247,61 +265,63 @@
             <h1>📝 Cadastro de Produtos</h1>
         </header>
 
-        <div class="content-container">
-            <div class="form-card">
-                <h3>Novo Produto</h3>
-                <label for="produtoNome" class="sr-only">Nome do produto</label>
-                <input type="text" id="produtoNome" placeholder="Nome do produto" required>
-                
-                <label for="produtoPreco" class="sr-only">Preço</label>
-                <input type="number" id="produtoPreco" placeholder="Preço (R$)" step="0.01" min="0" required>
-                
-                <label for="produtoEstoque" class="sr-only">Estoque</label>
-                <input type="number" id="produtoEstoque" placeholder="Quantidade em estoque" min="0" required>
-                
-                <label for="produtoCategoria" class="sr-only">Categoria</label>
-                <select id="produtoCategoria" required>
-                    <option value="">Selecione a categoria</option>
-                    <option value="lanches">🥪 Lanches</option>
-                    <option value="salgados">🥟 Salgados</option>
-                    <option value="bolos">🍰 Bolos</option>
-                    <option value="bebidas">🥤 Bebidas</option>
-                    <option value="sobremesa">🍨 Sobremesas</option>
-                    <option value="bomboniere">🍬 Bomboniere</option>
-                </select>
-                
-                <button onclick="app.adicionarProduto()" class="btn-primary">Adicionar Produto</button>
-            </div>
+        <main>
+            <div class="content-container">
+                <div class="form-card">
+                    <h3>Novo Produto</h3>
+                    <label for="produtoNome" class="sr-only">Nome do produto</label>
+                    <input type="text" id="produtoNome" placeholder="Nome do produto" required>
+                    
+                    <label for="produtoPreco" class="sr-only">Preço</label>
+                    <input type="number" id="produtoPreco" placeholder="Preço (R$)" step="0.01" min="0" required>
+                    
+                    <label for="produtoEstoque" class="sr-only">Estoque</label>
+                    <input type="number" id="produtoEstoque" placeholder="Quantidade em estoque" min="0" required>
+                    
+                    <label for="produtoCategoria" class="sr-only">Categoria</label>
+                    <select id="produtoCategoria" required>
+                        <option value="">Selecione a categoria</option>
+                        <option value="lanches">🥪 Lanches</option>
+                        <option value="salgados">🥟 Salgados</option>
+                        <option value="bolos">🍰 Bolos</option>
+                        <option value="bebidas">🥤 Bebidas</option>
+                        <option value="sobremesa">🍨 Sobremesas</option>
+                        <option value="bomboniere">🍬 Bomboniere</option>
+                    </select>
+                    
+                    <button onclick="app.adicionarProduto()" class="btn-primary">Adicionar Produto</button>
+                </div>
 
-            <div class="lista-produtos">
-                <h3>Produtos Cadastrados</h3>
-                
-                <!-- CAMPO DE PESQUISA -->
-                <div class="search-section">
-                    <input type="text" id="pesquisaProduto" placeholder="🔍 Pesquisar produto..." 
-       oninput="app.pesquisarProdutos()" class="pesquisa-produto">
-                </div>
-                
-                <div id="listaProdutos">
-                    <div class="loading">Carregando produtos...</div>
-                </div>
-                
-                <!-- PAGINAÇÃO -->
-                <div class="paginacao" id="paginacaoProdutos" style="display: none;">
-                    <button onclick="app.mudarPaginaProdutos('anterior')" class="btn-paginacao" id="btnAnteriorProdutos">
-                        ← Anterior
-                    </button>
+                <div class="lista-produtos">
+                    <h3>Produtos Cadastrados</h3>
                     
-                    <span class="info-pagina" id="infoPaginaProdutos">
-                        Página 1 de 1
-                    </span>
+                    <!-- CAMPO DE PESQUISA -->
+                    <div class="search-section">
+                        <input type="text" id="pesquisaProduto" placeholder="🔍 Pesquisar produto..." 
+               oninput="app.pesquisarProdutos()" class="pesquisa-produto">
+                    </div>
                     
-                    <button onclick="app.mudarPaginaProdutos('proxima')" class="btn-paginacao" id="btnProximaProdutos">
-                        Próxima →
-                    </button>
+                    <div id="listaProdutos">
+                        <div class="loading">Carregando produtos...</div>
+                    </div>
+                    
+                    <!-- PAGINAÇÃO -->
+                    <div class="paginacao" id="paginacaoProdutos" style="display: none;">
+                        <button onclick="app.mudarPaginaProdutos('anterior')" class="btn-paginacao" id="btnAnteriorProdutos">
+                            ← Anterior
+                        </button>
+                        
+                        <span class="info-pagina" id="infoPaginaProdutos">
+                            Página 1 de 1
+                        </span>
+                        
+                        <button onclick="app.mudarPaginaProdutos('proxima')" class="btn-paginacao" id="btnProximaProdutos">
+                            Próxima →
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- TELA ESTOQUE -->
@@ -311,11 +331,13 @@
             <h1>📦 Controle de Estoque</h1>
         </header>
 
-        <div class="content-container">
-            <div id="listaEstoque">
-                <div class="loading">Carregando estoque...</div>
+        <main>
+            <div class="content-container">
+                <div id="listaEstoque">
+                    <div class="loading">Carregando estoque...</div>
+                </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- TELA RELATÓRIOS -->
@@ -325,53 +347,55 @@
             <h1>📊 Relatórios de Vendas</h1>
         </header>
 
-        <div class="content-container">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <h3>Vendas Hoje</h3>
-                    <p class="stat-value">R$ <span id="vendasHoje">0.00</span></p>
+        <main>
+            <div class="content-container">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Vendas Hoje</h3>
+                        <p class="stat-value">R$ <span id="vendasHoje">0.00</span></p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total de Vendas</h3>
+                        <p class="stat-value"><span id="totalVendas">0</span></p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Produtos Vendidos</h3>
+                        <p class="stat-value"><span id="produtosVendidos">0</span></p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Ticket Médio</h3>
+                        <p class="stat-value">R$ <span id="ticketMedio">0.00</span></p>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <h3>Total de Vendas</h3>
-                    <p class="stat-value"><span id="totalVendas">0</span></p>
-                </div>
-                <div class="stat-card">
-                    <h3>Produtos Vendidos</h3>
-                    <p class="stat-value"><span id="produtosVendidos">0</span></p>
-                </div>
-                <div class="stat-card">
-                    <h3>Ticket Médio</h3>
-                    <p class="stat-value">R$ <span id="ticketMedio">0.00</span></p>
-                </div>
-            </div>
 
-            <div class="historico-vendas">
-                <h3>Histórico de Vendas</h3>
-                <div class="filtros-vendas">
-                    <div class="filtros-buttons">
-                        <button onclick="app.filtrarVendas('hoje')" class="btn-filtro active" id="filtroHoje">Hoje</button>
-                        <button onclick="app.filtrarVendas('semana')" class="btn-filtro" id="filtroSemana">Esta Semana</button>
-                        <button onclick="app.filtrarVendas('mes')" class="btn-filtro" id="filtroMes">Este Mês</button>
-                        <button onclick="app.filtrarVendas('todas')" class="btn-filtro" id="filtroTodas">Todas</button>
-                        <div class="filtro-usuario">
-                            <label for="filtroUsuario">Filtrar por usuário:</label>
-                            <select id="filtroUsuario" onchange="app.filtrarPorUsuario()">
-                                <option value="todos">Todos os usuários</option>
-                            </select>
+                <div class="historico-vendas">
+                    <h3>Histórico de Vendas</h3>
+                    <div class="filtros-vendas">
+                        <div class="filtros-buttons">
+                            <button onclick="app.filtrarVendas('hoje')" class="btn-filtro active" id="filtroHoje">Hoje</button>
+                            <button onclick="app.filtrarVendas('semana')" class="btn-filtro" id="filtroSemana">Esta Semana</button>
+                            <button onclick="app.filtrarVendas('mes')" class="btn-filtro" id="filtroMes">Este Mês</button>
+                            <button onclick="app.filtrarVendas('todas')" class="btn-filtro" id="filtroTodas">Todas</button>
+                            <div class="filtro-usuario">
+                                <label for="filtroUsuario">Filtrar por usuário:</label>
+                                <select id="filtroUsuario" onchange="app.filtrarPorUsuario()">
+                                    <option value="todos">Todos os usuários</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="filtro-periodo">
+                            <label for="dataInicio">Período personalizado:</label>
+                            <input type="date" id="dataInicio" aria-label="Data inicial">
+                            <input type="date" id="dataFim" aria-label="Data final">
+                            <button onclick="app.filtrarPorPeriodo()" class="btn-filtro-custom">Buscar Período</button>
                         </div>
                     </div>
-                    <div class="filtro-periodo">
-                        <label for="dataInicio">Período personalizado:</label>
-                        <input type="date" id="dataInicio" aria-label="Data inicial">
-                        <input type="date" id="dataFim" aria-label="Data final">
-                        <button onclick="app.filtrarPorPeriodo()" class="btn-filtro-custom">Buscar Período</button>
+                    <div id="historicoVendas">
+                        <div class="loading">Carregando histórico...</div>
                     </div>
                 </div>
-                <div id="historicoVendas">
-                    <div class="loading">Carregando histórico...</div>
-                </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- TELA USUÁRIOS -->
@@ -381,55 +405,57 @@
             <h1>👥 Gerenciamento de Usuários</h1>
         </header>
 
-        <div class="content-container">
-            <div class="form-card">
-                <h3>Novo Usuário</h3>
-                <label for="usuarioNome" class="sr-only">Nome do usuário</label>
-                <input type="text" id="usuarioNome" placeholder="Nome completo" required>
-                
-                <label for="usuarioLogin" class="sr-only">Login</label>
-                <input type="text" id="usuarioLogin" placeholder="Login (usuário)" required>
-                
-                <label for="usuarioSenha" class="sr-only">Senha</label>
-                <input type="password" id="usuarioSenha" placeholder="Senha" required>
-                
-                <label for="usuarioTipo" class="sr-only">Tipo de usuário</label>
-                <select id="usuarioTipo" required>
-                    <option value="">Selecione o tipo</option>
-                    <option value="administrador">👑 Administrador</option>
-                    <option value="normal">👤 Usuário Normal</option>
-                </select>
-                
-                <button onclick="app.adicionarUsuario()" class="btn-primary">Adicionar Usuário</button>
-            </div>
+        <main>
+            <div class="content-container">
+                <div class="form-card">
+                    <h3>Novo Usuário</h3>
+                    <label for="usuarioNome" class="sr-only">Nome do usuário</label>
+                    <input type="text" id="usuarioNome" placeholder="Nome completo" required>
+                    
+                    <label for="usuarioLogin" class="sr-only">Login</label>
+                    <input type="text" id="usuarioLogin" placeholder="Login (usuário)" required>
+                    
+                    <label for="usuarioSenha" class="sr-only">Senha</label>
+                    <input type="password" id="usuarioSenha" placeholder="Senha" required>
+                    
+                    <label for="usuarioTipo" class="sr-only">Tipo de usuário</label>
+                    <select id="usuarioTipo" required>
+                        <option value="">Selecione o tipo</option>
+                        <option value="administrador">👑 Administrador</option>
+                        <option value="normal">👤 Usuário Normal</option>
+                    </select>
+                    
+                    <button onclick="app.adicionarUsuario()" class="btn-primary">Adicionar Usuário</button>
+                </div>
 
-            <div class="lista-produtos">
-                <h3>Usuários Cadastrados</h3>
-                
-                <div class="search-section">
-                    <input type="text" id="pesquisaUsuario" placeholder="🔍 Pesquisar usuário..." 
-                           oninput="app.pesquisarUsuarios()" class="search-input">
-                </div>
-                
-                <div id="listaUsuarios">
-                    <div class="loading">Carregando usuários...</div>
-                </div>
-                
-                <div class="paginacao" id="paginacaoUsuarios" style="display: none;">
-                    <button onclick="app.mudarPaginaUsuarios('anterior')" class="btn-paginacao" id="btnAnteriorUsuarios">
-                        ← Anterior
-                    </button>
+                <div class="lista-produtos">
+                    <h3>Usuários Cadastrados</h3>
                     
-                    <span class="info-pagina" id="infoPaginaUsuarios">
-                        Página 1 de 1
-                    </span>
+                    <div class="search-section">
+                        <input type="text" id="pesquisaUsuario" placeholder="🔍 Pesquisar usuário..." 
+                               oninput="app.pesquisarUsuarios()" class="search-input">
+                    </div>
                     
-                    <button onclick="app.mudarPaginaUsuarios('proxima')" class="btn-paginacao" id="btnProximaUsuarios">
-                        Próxima →
-                    </button>
+                    <div id="listaUsuarios">
+                        <div class="loading">Carregando usuários...</div>
+                    </div>
+                    
+                    <div class="paginacao" id="paginacaoUsuarios" style="display: none;">
+                        <button onclick="app.mudarPaginaUsuarios('anterior')" class="btn-paginacao" id="btnAnteriorUsuarios">
+                            ← Anterior
+                        </button>
+                        
+                        <span class="info-pagina" id="infoPaginaUsuarios">
+                            Página 1 de 1
+                        </span>
+                        
+                        <button onclick="app.mudarPaginaUsuarios('proxima')" class="btn-paginacao" id="btnProximaUsuarios">
+                            Próxima →
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- MODAL EDITAR PRODUTO -->
@@ -519,6 +545,7 @@
                 <h3 style="color: #C8A8D8; margin-top: 10px;">Total Final: R$ <span id="modalTotalFinal">0.00</span></h3>
             </div>
             
+            <!-- MELHORIA: Adicionando label explícito para acessibilidade -->
             <div class="forma-pagamento">
                 <label for="modalFormaPagamento">Forma de Pagamento:</label>
                 <select id="modalFormaPagamento">
@@ -534,9 +561,12 @@
         </div>
     </div>
 
-    <!-- CONTAINER DE NOTIFICAÇÕES TOAST -->
-    <div id="toastContainer"></div>
+    <!-- MELHORIA: Container de notificações com aria-live para acessibilidade -->
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
+    <!-- MELHORIA: Scripts movidos para o final do body para melhor performance -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
