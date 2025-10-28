@@ -218,7 +218,6 @@ const app = {
     vendasFiltradasParaRelatorio: [], // Para o PDF dinâmico
 
     // ==================== SISTEMA DE PAGINAÇÃO GENÉRICO ====================
-     // ==================== SISTEMA DE PAGINAÇÃO GENÉRICO ====================
     pagination: {
         currentPage: 1,
         itemsPerPage: 25,
@@ -351,6 +350,158 @@ const app = {
             const minutos = String(dataBrasilia.getUTCMinutes()).padStart(2, '0');
             return `${dia}/${mes}/${ano}, ${horas}:${minutos}`;
         } catch (error) { console.error('Erro ao formatar data:', error); return 'Erro na data'; }
+    },
+
+    // ==================== FUNÇÃO PARA GERAR COMPROVANTE PDF ====================
+    gerarComprovantePDF: function(venda, mesaNumero = null) {
+        if (typeof window.jspdf === 'undefined') {
+            console.error('Biblioteca jsPDF não carregada');
+            this.mostrarToast('Erro ao gerar comprovante PDF', 'error');
+            return false;
+        }
+
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Configurações do documento
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(0, 0, 0);
+            
+            // Cabeçalho
+            doc.text('🍰 DOCE JARDIM 🍰', 105, 15, { align: 'center' });
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text('Comprovante de Venda', 105, 22, { align: 'center' });
+            
+            // Linha separadora
+            doc.setDrawColor(200, 200, 200);
+            doc.line(15, 25, 195, 25);
+            
+            let yPosition = 35;
+            
+            // Informações da venda
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('INFORMAÇÕES DA VENDA', 15, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            
+            const dataVenda = new Date(venda.data).toLocaleString('pt-BR');
+            doc.text(`Data/Hora: ${dataVenda}`, 20, yPosition);
+            yPosition += 6;
+            
+            if (mesaNumero) {
+                doc.text(`Mesa: ${mesaNumero}`, 20, yPosition);
+                yPosition += 6;
+            }
+            
+            doc.text(`Atendente: ${venda.usuario_nome || 'Sistema'}`, 20, yPosition);
+            yPosition += 6;
+            
+            doc.text(`Forma de Pagamento: ${venda.forma_pagamento}`, 20, yPosition);
+            yPosition += 10;
+            
+            // Itens da venda
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('ITENS VENDIDOS', 15, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'bold');
+            doc.text('Produto', 20, yPosition);
+            doc.text('Qtd', 120, yPosition);
+            doc.text('Valor', 160, yPosition);
+            yPosition += 6;
+            
+            doc.setDrawColor(200, 200, 200);
+            doc.line(15, yPosition, 195, yPosition);
+            yPosition += 8;
+            
+            // Lista de itens
+            let itens = [];
+            try {
+                itens = JSON.parse(venda.itens || '[]');
+            } catch (e) {
+                console.error('Erro ao parsear itens:', e);
+                itens = [];
+            }
+            
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+            
+            itens.forEach(item => {
+                if (yPosition > 250) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                // Nome do produto (com quebra de linha se necessário)
+                const nomeProduto = item.nome || 'Produto não identificado';
+                const nomeLines = doc.splitTextToSize(nomeProduto, 80);
+                doc.text(nomeLines, 20, yPosition);
+                
+                // Quantidade
+                doc.text(`${item.quantidade || 0}x`, 120, yPosition);
+                
+                // Valor total do item
+                const valorItem = ((item.preco || 0) * (item.quantidade || 0)).toFixed(2);
+                doc.text(`R$ ${valorItem}`, 160, yPosition);
+                
+                yPosition += (nomeLines.length * 5) + 2;
+            });
+            
+            yPosition += 5;
+            doc.line(15, yPosition, 195, yPosition);
+            yPosition += 10;
+            
+            // Totais
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'bold');
+            
+            doc.text('Subtotal:', 120, yPosition);
+            doc.text(`R$ ${venda.subtotal?.toFixed(2) || '0.00'}`, 160, yPosition);
+            yPosition += 7;
+            
+            if (venda.desconto && venda.desconto > 0) {
+                doc.text('Desconto:', 120, yPosition);
+                doc.text(`- R$ ${venda.desconto.toFixed(2)}`, 160, yPosition);
+                yPosition += 7;
+            }
+            
+            doc.setFontSize(12);
+            doc.text('TOTAL:', 120, yPosition);
+            doc.text(`R$ ${venda.total?.toFixed(2) || '0.00'}`, 160, yPosition);
+            yPosition += 12;
+            
+            // Rodapé
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(100, 100, 100);
+            doc.text('Obrigado pela preferência! Volte sempre!', 105, yPosition, { align: 'center' });
+            yPosition += 5;
+            doc.text('Documento gerado automaticamente pelo sistema', 105, yPosition, { align: 'center' });
+            
+            // Gerar nome do arquivo
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+            const mesaInfo = mesaNumero ? `mesa-${mesaNumero}-` : '';
+            const fileName = `comprovante-${mesaInfo}${timestamp}.pdf`;
+            
+            // Salvar PDF
+            doc.save(fileName);
+            
+            console.log('✅ Comprovante PDF gerado com sucesso');
+            return true;
+            
+        } catch (error) {
+            console.error('❌ Erro ao gerar comprovante PDF:', error);
+            this.mostrarToast('Erro ao gerar comprovante', 'error');
+            return false;
+        }
     },
 
     // ==================== NAVEGAÇÃO ====================
@@ -622,16 +773,80 @@ const app = {
         const tipoDesconto = document.getElementById('modalTipoDesconto').value;
         const valorDescontoInput = document.getElementById('modalValorDesconto').value;
         const formaPagamento = document.getElementById('modalFormaPagamento').value;
+        
         let desconto = 0;
-        if (tipoDesconto !== 'nenhum' && valorDescontoInput) { const valorDesconto = parseFloat(valorDescontoInput); if (tipoDesconto === 'percentual') desconto = (subtotal * valorDesconto) / 100; else desconto = valorDesconto; }
+        if (tipoDesconto !== 'nenhum' && valorDescontoInput) {
+            const valorDesconto = parseFloat(valorDescontoInput);
+            if (tipoDesconto === 'percentual') {
+                desconto = (subtotal * valorDesconto) / 100;
+            } else {
+                desconto = valorDesconto;
+            }
+        }
+        
         const total = subtotal - desconto;
-        const venda = { itens: JSON.stringify(this.carrinho), subtotal: subtotal, desconto: desconto, total: total, forma_pagamento: formaPagamento, mesa_numero: this.mesaAtual.numero, data: new Date().toISOString() };
+        
+        const venda = {
+            itens: JSON.stringify(this.carrinho),
+            subtotal: subtotal,
+            desconto: desconto,
+            total: total,
+            forma_pagamento: formaPagamento,
+            mesa_numero: this.mesaAtual.numero,
+            data: new Date().toISOString()
+        };
+        
+        // Adicionar informações do usuário se estiver logado
+        if (this.usuarioLogado) {
+            venda.usuario_id = this.usuarioLogado.id;
+            venda.usuario_nome = this.usuarioLogado.nome;
+        }
+        
         const sucesso = await this.registrarVenda(venda);
-        if (!sucesso) { this.mostrarToast('Erro ao registrar venda', 'error'); return; }
-        for (const item of this.carrinho) { const produto = this.cache.produtos.find(p => p.id === item.id); if (produto) { produto.estoque -= item.quantidade; await this.atualizarProduto(produto); } }
-        const { data, error } = await supabase.from('mesas').update({ status: 'livre', pedido_atual: null, valor_total: 0 }).eq('id', this.mesaAtual.id).select();
-        if (error) { console.error('❌ ERRO AO LIBERAR MESA:', error); this.mostrarToast('Erro ao liberar mesa: ' + error.message, 'error'); return; }
-        this.fecharModalConta(); this.carrinho = []; const mesaNumero = this.mesaAtual.numero; this.mesaAtual = null; this.mostrarToast(`Mesa ${mesaNumero} fechada com sucesso!`, 'sucesso'); await this.carregarMesas(); this.showScreen('mesasScreen');
+        
+        if (!sucesso) {
+            this.mostrarToast('Erro ao registrar venda', 'error');
+            return;
+        }
+        
+        // Atualizar estoque dos produtos vendidos
+        for (const item of this.carrinho) {
+            const produto = this.cache.produtos.find(p => p.id === item.id);
+            if (produto) {
+                produto.estoque -= item.quantidade;
+                await this.atualizarProduto(produto);
+            }
+        }
+        
+        // Gerar comprovante PDF
+        setTimeout(() => {
+            this.gerarComprovantePDF(venda, this.mesaAtual.numero);
+        }, 500);
+        
+        // Liberar mesa
+        const { data, error } = await supabase.from('mesas')
+            .update({ 
+                status: 'livre', 
+                pedido_atual: null, 
+                valor_total: 0 
+            })
+            .eq('id', this.mesaAtual.id)
+            .select();
+        
+        if (error) {
+            console.error('❌ ERRO AO LIBERAR MESA:', error);
+            this.mostrarToast('Erro ao liberar mesa: ' + error.message, 'error');
+            return;
+        }
+        
+        this.fecharModalConta();
+        this.carrinho = [];
+        const mesaNumero = this.mesaAtual.numero;
+        this.mesaAtual = null;
+        
+        this.mostrarToast(`Mesa ${mesaNumero} fechada e comprovante gerado!`, 'sucesso');
+        await this.carregarMesas();
+        this.showScreen('mesasScreen');
     },
 
     finalizarComanda: function() { if (!this.mesaAtual) return; if (this.carrinho.length === 0) { this.mostrarToast('Comanda vazia!', 'warning'); return; } this.mostrarModalFecharConta(this.mesaAtual); },
@@ -730,18 +945,62 @@ const app = {
     },
 
     finalizarVenda: async function() {
-        if (this.carrinho.length === 0) { this.mostrarToast('Carrinho vazio!', 'warning'); return; }
+        if (this.carrinho.length === 0) {
+            this.mostrarToast('Carrinho vazio!', 'warning');
+            return;
+        }
+        
         this.setButtonLoading('finalizarVenda', true, 'Finalizar Venda');
+        
         const formaPagamento = document.getElementById('formaPagamento').value;
         const subtotal = parseFloat(document.getElementById('subtotalCarrinho').textContent);
         const desconto = parseFloat(document.getElementById('valorDescontoAplicado')?.textContent || 0);
         const total = parseFloat(document.getElementById('carrinhoTotal').textContent);
-        const venda = { itens: JSON.stringify(this.carrinho), subtotal: subtotal, desconto: desconto, total: total, forma_pagamento: formaPagamento, data: new Date().toISOString() };
-        const sucesso = await this.registrarVenda(venda);
-        if (sucesso) {
-            for (const item of this.carrinho) { const produto = this.cache.produtos.find(p => p.id === item.id); if (produto) { produto.estoque -= item.quantidade; await this.atualizarProduto(produto); } }
-            this.carrinho = []; this.atualizarCarrinho(); document.getElementById('tipoDesconto').value = 'nenhum'; document.getElementById('valorDesconto').value = ''; document.getElementById('valorDesconto').style.display = 'none'; this.calcularTotal(); await this.carregarProdutosPDV();
+        
+        const venda = {
+            itens: JSON.stringify(this.carrinho),
+            subtotal: subtotal,
+            desconto: desconto,
+            total: total,
+            forma_pagamento: formaPagamento,
+            data: new Date().toISOString()
+        };
+        
+        // Adicionar informações do usuário se estiver logado
+        if (this.usuarioLogado) {
+            venda.usuario_id = this.usuarioLogado.id;
+            venda.usuario_nome = this.usuarioLogado.nome;
         }
+        
+        const sucesso = await this.registrarVenda(venda);
+        
+        if (sucesso) {
+            // Atualizar estoque
+            for (const item of this.carrinho) {
+                const produto = this.cache.produtos.find(p => p.id === item.id);
+                if (produto) {
+                    produto.estoque -= item.quantidade;
+                    await this.atualizarProduto(produto);
+                }
+            }
+            
+            // Gerar comprovante PDF
+            setTimeout(() => {
+                this.gerarComprovantePDF(venda);
+            }, 500);
+            
+            // Limpar carrinho e resetar interface
+            this.carrinho = [];
+            this.atualizarCarrinho();
+            document.getElementById('tipoDesconto').value = 'nenhum';
+            document.getElementById('valorDesconto').value = '';
+            document.getElementById('valorDesconto').style.display = 'none';
+            this.calcularTotal();
+            await this.carregarProdutosPDV();
+            
+            this.mostrarToast('Venda finalizada e comprovante gerado!', 'sucesso');
+        }
+        
         this.setButtonLoading('finalizarVenda', false, 'Finalizar Venda');
     },
 
@@ -1199,4 +1458,3 @@ if ('serviceWorker' in navigator) {
         }
     });
 }
-
