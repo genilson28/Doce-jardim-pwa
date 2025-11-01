@@ -1134,7 +1134,10 @@ const app = {
             this.criarFiltroUsuarios();
             this.calcularEstatisticas();
             this.filtrarVendas('hoje');
-        } catch (error) { console.error('❌ Erro ao carregar relatórios:', error); this.mostrarToast('Erro ao carregar relatórios', 'error'); }
+        } catch (error) { 
+            console.error('❌ Erro ao carregar relatórios:', error); 
+            this.mostrarToast('Erro ao carregar relatórios', 'error'); 
+        }
     },
 
     carregarVendasComHoraCorrigida: async function() {
@@ -1150,7 +1153,10 @@ const app = {
                 }
                 return venda;
             });
-        } catch (error) { console.error('❌ Erro ao carregar vendas:', error); return []; }
+        } catch (error) { 
+            console.error('❌ Erro ao carregar vendas:', error); 
+            return []; 
+        }
     },
 
     criarFiltroUsuarios: function() {
@@ -1167,32 +1173,109 @@ const app = {
 
     calcularEstatisticas: function(vendasFiltradas = null) {
         const vendas = vendasFiltradas || this.vendasFiltradasParaRelatorio;
-        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-        const vendasHoje = vendas.filter(v => { const dataVenda = new Date(v.data_corrigida || v.data); dataVenda.setHours(0, 0, 0, 0); return dataVenda.getTime() === hoje.getTime(); });
-        const totalVendasHoje = vendasHoje.reduce((sum, v) => sum + (v.total || 0), 0);
+        
+        // CORREÇÃO: Calcular vendas de hoje corretamente
+        const hoje = new Date(); 
+        hoje.setHours(0, 0, 0, 0);
+        
+        const vendasHoje = vendas.filter(v => { 
+            if (!v.data_corrigida && !v.data) return false;
+            const dataVenda = new Date(v.data_corrigida || v.data); 
+            dataVenda.setHours(0, 0, 0, 0); 
+            return dataVenda.getTime() === hoje.getTime(); 
+        });
+        
+        // CORREÇÃO: Somar corretamente os valores totais
+        const totalVendasHoje = vendasHoje.reduce((sum, v) => {
+            const total = parseFloat(v.total) || 0;
+            return sum + total;
+        }, 0);
+        
         const totalVendas = vendas.length;
-        const totalProdutos = vendas.reduce((sum, v) => { try { const itens = JSON.parse(v.itens || '[]'); return sum + itens.reduce((s, item) => s + (item.quantidade || 0), 0); } catch { return sum; } }, 0);
-        const ticketMedio = totalVendas > 0 ? vendas.reduce((sum, v) => sum + (v.total || 0), 0) / totalVendas : 0;
+        
+        // CORREÇÃO: Contar produtos vendidos corretamente
+        const totalProdutos = vendas.reduce((sum, v) => { 
+            try { 
+                const itens = JSON.parse(v.itens || '[]'); 
+                return sum + itens.reduce((s, item) => s + (parseInt(item.quantidade) || 0), 0); 
+            } catch { 
+                return sum; 
+            } 
+        }, 0);
+        
+        // CORREÇÃO: Calcular ticket médio corretamente
+        const totalGeralVendas = vendas.reduce((sum, v) => {
+            const total = parseFloat(v.total) || 0;
+            return sum + total;
+        }, 0);
+        
+        const ticketMedio = totalVendas > 0 ? totalGeralVendas / totalVendas : 0;
+        
+        // Atualizar a interface
         document.getElementById('vendasHoje').textContent = totalVendasHoje.toFixed(2);
         document.getElementById('totalVendas').textContent = totalVendas;
         document.getElementById('produtosVendidos').textContent = totalProdutos;
         document.getElementById('ticketMedio').textContent = ticketMedio.toFixed(2);
+        
+        console.log('📊 Estatísticas calculadas:', {
+            vendasHoje: totalVendasHoje,
+            totalVendas: totalVendas,
+            totalProdutos: totalProdutos,
+            ticketMedio: ticketMedio,
+            periodo: vendasFiltradas ? 'Filtrado' : 'Geral'
+        });
     },
 
     filtrarVendas: function(periodo) {
-        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+        const hoje = new Date(); 
+        hoje.setHours(0, 0, 0, 0);
         let vendasFiltradas = [];
+        
         switch(periodo) {
-            case 'hoje': vendasFiltradas = this.cache.vendas.filter(v => { const dataVenda = new Date(v.data_corrigida || v.data); dataVenda.setHours(0, 0, 0, 0); return dataVenda.getTime() === hoje.getTime(); }); break;
-            case 'semana': const inicioSemana = new Date(hoje); inicioSemana.setDate(hoje.getDate() - hoje.getDay()); vendasFiltradas = this.cache.vendas.filter(v => { const dataVenda = new Date(v.data_corrigida || v.data); return dataVenda >= inicioSemana; }); break;
-            case 'mes': const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1); vendasFiltradas = this.cache.vendas.filter(v => { const dataVenda = new Date(v.data_corrigida || v.data); return dataVenda >= inicioMes; }); break;
-            default: vendasFiltradas = this.cache.vendas;
+            case 'hoje': 
+                vendasFiltradas = this.cache.vendas.filter(v => { 
+                    if (!v.data_corrigida && !v.data) return false;
+                    const dataVenda = new Date(v.data_corrigida || v.data); 
+                    dataVenda.setHours(0, 0, 0, 0); 
+                    return dataVenda.getTime() === hoje.getTime(); 
+                }); 
+                break;
+                
+            case 'semana': 
+                const inicioSemana = new Date(hoje); 
+                inicioSemana.setDate(hoje.getDate() - hoje.getDay()); 
+                vendasFiltradas = this.cache.vendas.filter(v => { 
+                    if (!v.data_corrigida && !v.data) return false;
+                    const dataVenda = new Date(v.data_corrigida || v.data); 
+                    return dataVenda >= inicioSemana; 
+                }); 
+                break;
+                
+            case 'mes': 
+                const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1); 
+                vendasFiltradas = this.cache.vendas.filter(v => { 
+                    if (!v.data_corrigida && !v.data) return false;
+                    const dataVenda = new Date(v.data_corrigida || v.data); 
+                    return dataVenda >= inicioMes; 
+                }); 
+                break;
+                
+            default: 
+                vendasFiltradas = this.cache.vendas;
         }
+        
+        // Aplicar filtro de usuário se selecionado
         const filtroUsuario = document.getElementById('filtroUsuario');
-        if (filtroUsuario && filtroUsuario.value !== 'todos') { const usuarioId = parseInt(filtroUsuario.value); vendasFiltradas = vendasFiltradas.filter(v => v.usuario_id === usuarioId); }
-        this.vendasFiltradasParaRelatorio = vendasFiltradas; // Armazena para o PDF
+        if (filtroUsuario && filtroUsuario.value !== 'todos') { 
+            const usuarioId = parseInt(filtroUsuario.value); 
+            vendasFiltradas = vendasFiltradas.filter(v => v.usuario_id === usuarioId); 
+        }
+        
+        this.vendasFiltradasParaRelatorio = vendasFiltradas;
         this.calcularEstatisticas(vendasFiltradas);
         this.renderizarHistoricoVendas(vendasFiltradas);
+        
+        // Atualizar botões de filtro ativos
         document.querySelectorAll('.filtros-buttons .btn-filtro').forEach(btn => btn.classList.remove('active'));
         const btnAtivo = document.getElementById(`filtro${periodo.charAt(0).toUpperCase() + periodo.slice(1)}`);
         if (btnAtivo) btnAtivo.classList.add('active');
@@ -1201,76 +1284,212 @@ const app = {
     filtrarPorPeriodo: function() {
         const dataInicio = document.getElementById('dataInicio').value;
         const dataFim = document.getElementById('dataFim').value;
-        if (!dataInicio || !dataFim) { this.mostrarToast('Selecione as datas', 'warning'); return; }
+        
+        if (!dataInicio || !dataFim) { 
+            this.mostrarToast('Selecione as datas', 'warning'); 
+            return; 
+        }
+        
         const inicio = new Date(dataInicio);
-        const fim = new Date(dataFim); fim.setHours(23, 59, 59, 999);
-        let vendasFiltradas = this.cache.vendas.filter(v => { const dataVenda = new Date(v.data_corrigida || v.data); return dataVenda >= inicio && dataVenda <= fim; });
+        const fim = new Date(dataFim); 
+        fim.setHours(23, 59, 59, 999);
+        
+        let vendasFiltradas = this.cache.vendas.filter(v => { 
+            if (!v.data_corrigida && !v.data) return false;
+            const dataVenda = new Date(v.data_corrigida || v.data); 
+            return dataVenda >= inicio && dataVenda <= fim; 
+        });
+        
         const filtroUsuario = document.getElementById('filtroUsuario');
-        if (filtroUsuario && filtroUsuario.value !== 'todos') { const usuarioId = parseInt(filtroUsuario.value); vendasFiltradas = vendasFiltradas.filter(v => v.usuario_id === usuarioId); }
-        this.vendasFiltradasParaRelatorio = vendasFiltradas; // Armazena para o PDF
+        if (filtroUsuario && filtroUsuario.value !== 'todos') { 
+            const usuarioId = parseInt(filtroUsuario.value); 
+            vendasFiltradas = vendasFiltradas.filter(v => v.usuario_id === usuarioId); 
+        }
+        
+        this.vendasFiltradasParaRelatorio = vendasFiltradas;
         this.calcularEstatisticas(vendasFiltradas);
         this.renderizarHistoricoVendas(vendasFiltradas);
+        
         document.querySelectorAll('.filtros-buttons .btn-filtro').forEach(btn => btn.classList.remove('active'));
     },
 
-    filtrarPorUsuario: function() { this.filtrarVendas('todas'); },
+    filtrarPorUsuario: function() { 
+        this.filtrarVendas('todas'); 
+    },
 
     renderizarHistoricoVendas: function(vendas) {
         const historico = document.getElementById('historicoVendas');
         if (!historico) return;
-        if (vendas.length === 0) { historico.innerHTML = '<div class="empty-state">Nenhuma venda neste período</div>'; return; }
-        historico.innerHTML = vendas.map(venda => {
+        
+        if (vendas.length === 0) { 
+            historico.innerHTML = '<div class="empty-state">Nenhuma venda neste período</div>'; 
+            return; 
+        }
+        
+        // CORREÇÃO: Calcular totais para exibição no histórico
+        const totalPeriodo = vendas.reduce((sum, v) => sum + (parseFloat(v.total) || 0), 0);
+        
+        let html = `
+            <div class="resumo-periodo">
+                <strong>Total do período: R$ ${totalPeriodo.toFixed(2)}</strong> | 
+                ${vendas.length} venda(s)
+            </div>
+        `;
+        
+        html += vendas.map(venda => {
             const dataExibicao = venda.data_exibicao || new Date(venda.data).toLocaleString('pt-BR');
             let itens = [];
-            try { if (venda.itens && typeof venda.itens === 'string' && venda.itens.trim() !== '') { itens = JSON.parse(venda.itens); } } catch (e) { console.error('Erro ao fazer parse dos items:', e, venda.itens); itens = []; }
+            try { 
+                if (venda.itens && typeof venda.itens === 'string' && venda.itens.trim() !== '') { 
+                    itens = JSON.parse(venda.itens); 
+                } 
+            } catch (e) { 
+                console.error('Erro ao fazer parse dos items:', e, venda.itens); 
+                itens = []; 
+            }
+            
             const mesaTexto = venda.mesa_numero ? ` | Mesa ${venda.mesa_numero}` : '';
             const usuarioTexto = venda.usuario_nome ? ` | ${venda.usuario_nome}` : '';
+            const totalVenda = parseFloat(venda.total) || 0;
+            
             return `
                 <div class="venda-item">
-                    <div class="venda-item-header"><strong>${dataExibicao}${mesaTexto}${usuarioTexto}</strong><strong>R$ ${venda.total?.toFixed(2)}</strong></div>
-                    <p><strong>Forma:</strong> ${venda.forma_pagamento}</p>
-                    <div class="venda-item-produtos"><strong>Produtos:</strong> ${itens.map(item => `${item.nome} (${item.quantidade}x)`).join(', ')}</div>
+                    <div class="venda-item-header">
+                        <strong>${dataExibicao}${mesaTexto}${usuarioTexto}</strong>
+                        <strong class="valor-venda">R$ ${totalVenda.toFixed(2)}</strong>
+                    </div>
+                    <p><strong>Forma de pagamento:</strong> ${venda.forma_pagamento}</p>
+                    <div class="venda-item-produtos">
+                        <strong>Produtos:</strong> ${itens.map(item => `${item.nome} (${item.quantidade}x R$ ${(parseFloat(item.preco) || 0).toFixed(2)})`).join(', ')}
+                    </div>
+                    ${venda.desconto > 0 ? `<p><strong>Desconto:</strong> R$ ${parseFloat(venda.desconto).toFixed(2)}</p>` : ''}
                 </div>
             `;
         }).join('');
-        historico.innerHTML += `<div class="exportar-pdf-container"><button onclick="app.exportarParaPDF()" class="btn-primary">📄 Exportar para PDF</button></div>`;
+        
+        html += `<div class="exportar-pdf-container"><button onclick="app.exportarParaPDF()" class="btn-primary">📄 Exportar para PDF</button></div>`;
+        
+        historico.innerHTML = html;
     },
 
     exportarParaPDF: function() {
-        if (typeof window.jspdf === 'undefined') { this.mostrarToast('Erro: Biblioteca de PDF não carregada.', 'error'); return; }
+        if (typeof window.jspdf === 'undefined') { 
+            this.mostrarToast('Erro: Biblioteca de PDF não carregada.', 'error'); 
+            return; 
+        }
+        
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-        doc.setFontSize(16); doc.setFont(undefined, 'bold');
+        
+        // Cabeçalho
+        doc.setFontSize(16); 
+        doc.setFont(undefined, 'bold');
         doc.text('RELATÓRIO DE VENDAS - DOCE JARDIM', 105, 15, { align: 'center' });
-        doc.setFontSize(10); doc.setFont(undefined, 'normal');
-        doc.text(`Gerado em: ${new Date().toLocaleDateString()}`, 105, 22, { align: 'center' });
+        
+        doc.setFontSize(10); 
+        doc.setFont(undefined, 'normal');
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 105, 22, { align: 'center' });
+        
         let yPosition = 35;
-        doc.setFontSize(12); doc.setFont(undefined, 'bold');
-        doc.text('ESTATÍSTICAS:', 14, yPosition); yPosition += 8;
-        doc.setFontSize(10); doc.setFont(undefined, 'normal');
-        doc.text(`Vendas Hoje: R$ ${document.getElementById('vendasHoje').textContent}`, 20, yPosition); yPosition += 6;
-        doc.text(`Total de Vendas: ${document.getElementById('totalVendas').textContent}`, 20, yPosition); yPosition += 6;
-        doc.text(`Produtos Vendidos: ${document.getElementById('produtosVendidos').textContent}`, 20, yPosition); yPosition += 6;
-        doc.text(`Ticket Médio: R$ ${document.getElementById('ticketMedio').textContent}`, 20, yPosition); yPosition += 12;
-        doc.setFontSize(12); doc.setFont(undefined, 'bold');
-        doc.text('HISTÓRICO DE VENDAS:', 14, yPosition); yPosition += 10;
-        if (this.vendasFiltradasParaRelatorio.length === 0) { doc.setFontSize(10); doc.text('Nenhuma venda no período selecionado.', 20, yPosition); }
-        else {
-            this.vendasFiltradasParaRelatorio.forEach(venda => {
-                if (yPosition > 270) { doc.addPage(); yPosition = 20; }
-                doc.setFontSize(9); doc.setFont(undefined, 'bold');
+        
+        // Estatísticas
+        doc.setFontSize(12); 
+        doc.setFont(undefined, 'bold');
+        doc.text('ESTATÍSTICAS:', 14, yPosition); 
+        yPosition += 8;
+        
+        doc.setFontSize(10); 
+        doc.setFont(undefined, 'normal');
+        
+        // CORREÇÃO: Usar os valores calculados corretamente
+        doc.text(`Vendas Hoje: R$ ${document.getElementById('vendasHoje').textContent}`, 20, yPosition); 
+        yPosition += 6;
+        doc.text(`Total de Vendas: ${document.getElementById('totalVendas').textContent}`, 20, yPosition); 
+        yPosition += 6;
+        doc.text(`Produtos Vendidos: ${document.getElementById('produtosVendidos').textContent}`, 20, yPosition); 
+        yPosition += 6;
+        doc.text(`Ticket Médio: R$ ${document.getElementById('ticketMedio').textContent}`, 20, yPosition); 
+        yPosition += 12;
+        
+        // Histórico de vendas
+        doc.setFontSize(12); 
+        doc.setFont(undefined, 'bold');
+        doc.text('HISTÓRICO DE VENDAS:', 14, yPosition); 
+        yPosition += 10;
+        
+        if (this.vendasFiltradasParaRelatorio.length === 0) { 
+            doc.setFontSize(10); 
+            doc.text('Nenhuma venda no período selecionado.', 20, yPosition); 
+        } else {
+            // CORREÇÃO: Calcular total para o PDF também
+            const totalPDF = this.vendasFiltradasParaRelatorio.reduce((sum, v) => sum + (parseFloat(v.total) || 0), 0);
+            
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'bold');
+            doc.text(`Total do período: R$ ${totalPDF.toFixed(2)} | ${this.vendasFiltradasParaRelatorio.length} venda(s)`, 14, yPosition);
+            yPosition += 8;
+            
+            this.vendasFiltradasParaRelatorio.forEach((venda, index) => {
+                if (yPosition > 270) { 
+                    doc.addPage(); 
+                    yPosition = 20; 
+                }
+                
+                doc.setFontSize(9); 
+                doc.setFont(undefined, 'bold');
+                
                 const dataExibicao = venda.data_exibicao || new Date(venda.data).toLocaleString('pt-BR');
-                doc.text(`${dataExibicao} | Mesa ${venda.mesa_numero || 'N/A'} | ${venda.usuario_nome || 'N/A'}`, 14, yPosition); yPosition += 5;
-                doc.setFontSize(10); doc.setFont(undefined, 'bold');
-                doc.text(`R$ ${venda.total?.toFixed(2) || '0.00'}`, 180, yPosition, { align: 'right' });
-                doc.setFontSize(9); doc.setFont(undefined, 'normal');
-                doc.text(`- ${venda.forma_pagamento}`, 14, yPosition); yPosition += 5;
-                let itens = []; try { itens = JSON.parse(venda.itens || '[]'); } catch (e) { itens = []; }
-                doc.text(`Produtos: ${itens.map(item => `${item.nome} (${item.quantidade}x)`).join(', ')}`, 14, yPosition); yPosition += 8;
-                doc.setDrawColor(200, 200, 200); doc.line(14, yPosition, 196, yPosition); yPosition += 7;
+                const mesaInfo = venda.mesa_numero ? `Mesa ${venda.mesa_numero}` : 'PDV';
+                const usuarioInfo = venda.usuario_nome || 'Sistema';
+                
+                doc.text(`${index + 1}. ${dataExibicao}`, 14, yPosition);
+                yPosition += 4;
+                
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'normal');
+                doc.text(`${mesaInfo} | ${usuarioInfo} | ${venda.forma_pagamento}`, 14, yPosition);
+                yPosition += 4;
+                
+                // Itens da venda
+                let itens = []; 
+                try { 
+                    itens = JSON.parse(venda.itens || '[]'); 
+                } catch (e) { 
+                    itens = []; 
+                }
+                
+                itens.forEach(item => {
+                    if (yPosition > 270) { 
+                        doc.addPage(); 
+                        yPosition = 20; 
+                    }
+                    doc.text(`   ${item.nome} (${item.quantidade}x R$ ${(parseFloat(item.preco) || 0).toFixed(2)})`, 14, yPosition);
+                    yPosition += 4;
+                });
+                
+                // Total da venda
+                if (yPosition > 270) { 
+                    doc.addPage(); 
+                    yPosition = 20; 
+                }
+                
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'bold');
+                const totalVenda = parseFloat(venda.total) || 0;
+                doc.text(`Total: R$ ${totalVenda.toFixed(2)}`, 160, yPosition, { align: 'right' });
+                yPosition += 8;
+                
+                // Linha separadora
+                doc.setDrawColor(200, 200, 200); 
+                doc.line(14, yPosition, 196, yPosition); 
+                yPosition += 10;
             });
         }
-        doc.save(`relatorio-vendas-${new Date().toISOString().split('T')[0]}.pdf`);
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+        doc.save(`relatorio-vendas-${timestamp}.pdf`);
+        
+        this.mostrarToast('Relatório PDF gerado com sucesso!', 'sucesso');
     },
 
     // ==================== USUÁRIOS ====================
