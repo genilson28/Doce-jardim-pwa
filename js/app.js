@@ -505,26 +505,42 @@ const app = {
     },
 
     // ==================== NAVEGAÇÃO ====================
-    showScreen: async function(screenId) {
-        try {
-            if (this.usuarioLogado && this.usuarioLogado.tipo === 'normal') {
-                const telasPermitidas = ['dashboardScreen', 'mesasScreen', 'pdvScreen', 'comandaScreen'];
-                if (!telasPermitidas.includes(screenId)) { this.mostrarToast('Você não tem permissão para acessar esta tela', 'error'); return; }
+   showScreen: async function(screenId) {
+    try {
+        if (this.usuarioLogado && this.usuarioLogado.tipo === 'normal') {
+            const telasPermitidas = ['dashboardScreen', 'mesasScreen', 'pdvScreen', 'comandaScreen'];
+            if (!telasPermitidas.includes(screenId)) { 
+                this.mostrarToast('Você não tem permissão para acessar esta tela', 'error'); 
+                return; 
             }
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            const screenElement = document.getElementById(screenId);
-            if (!screenElement) { console.error(`❌ Tela não encontrada: ${screenId}`); return; }
-            screenElement.classList.add('active');
-            switch(screenId) {
-                case 'mesasScreen': await this.listarMesas(); break;
-                case 'pdvScreen': await this.carregarProdutosPDV(); break;
-                case 'produtosScreen': await this.listarProdutos(); break;
-                case 'estoqueScreen': await this.listarEstoque(); break;
-                case 'relatoriosScreen': await this.carregarRelatorios(); break;
-                case 'usuariosScreen': await this.listarUsuarios(); break;
-            }
-        } catch (error) { console.error('❌ Erro ao mudar tela:', error); this.mostrarToast(this.handleSupabaseError(error), 'error'); }
-    },
+        }
+        
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        const screenElement = document.getElementById(screenId);
+        if (!screenElement) { 
+            console.error(`❌ Tela não encontrada: ${screenId}`); 
+            return; 
+        }
+        screenElement.classList.add('active');
+        
+        switch(screenId) {
+            case 'mesasScreen': await this.listarMesas(); break;
+            case 'pdvScreen': await this.carregarProdutosPDV(); break;
+            case 'produtosScreen': await this.listarProdutos(); break;
+            case 'estoqueScreen': await this.listarEstoque(); break;
+            case 'relatoriosScreen': await this.carregarRelatorios(); break;
+            case 'usuariosScreen': await this.listarUsuarios(); break;
+            
+            // ✅ ADICIONAR: Cases das telas financeiras
+            case 'fornecedoresScreen': await this.listarFornecedores(); break;
+            case 'comprasScreen': await this.listarCompras(); break;
+            case 'relatorioFinanceiroScreen': await this.carregarRelatorioFinanceiro(); break;
+        }
+    } catch (error) { 
+        console.error('❌ Erro ao mudar tela:', error); 
+        this.mostrarToast(this.handleSupabaseError(error), 'error'); 
+    }
+},
 
     // ==================== LOGIN ====================
     login: async function() {
@@ -548,23 +564,33 @@ const app = {
         finally { this.setButtonLoading('login', false); }
     },
 
-    configurarPermissoes: function() {
-        if (!this.usuarioLogado) return;
-        const isAdmin = this.usuarioLogado.tipo === 'administrador';
-        const cardProdutos = document.querySelector('[onclick="app.showScreen(\'produtosScreen\')"]');
-        const cardEstoque = document.querySelector('[onclick="app.showScreen(\'estoqueScreen\')"]');
-        const cardRelatorios = document.querySelector('[onclick="app.showScreen(\'relatoriosScreen\')"]');
-        const cardUsuarios = document.getElementById('cardUsuarios');
-        if (cardProdutos) cardProdutos.style.display = isAdmin ? 'block' : 'none';
-        if (cardEstoque) cardEstoque.style.display = isAdmin ? 'block' : 'none';
-        if (cardRelatorios) cardRelatorios.style.display = isAdmin ? 'block' : 'none';
-        if (cardUsuarios) cardUsuarios.style.display = isAdmin ? 'block' : 'none';
-    },
-
-    logout: function() {
-        if (confirm('Deseja sair?')) { this.carrinho = []; this.mesaAtual = null; this.usuarioLogado = null; this.showScreen('loginScreen'); this.mostrarToast('Logout realizado', 'info'); }
-    },
-
+   // app.js - Linha ~430
+configurarPermissoes: function() {
+    if (!this.usuarioLogado) return;
+    const isAdmin = this.usuarioLogado.tipo === 'administrador';
+    
+    // Cards existentes
+    const cardProdutos = document.querySelector('[onclick="app.showScreen(\'produtosScreen\')"]');
+    const cardEstoque = document.querySelector('[onclick="app.showScreen(\'estoqueScreen\')"]');
+    const cardRelatorios = document.querySelector('[onclick="app.showScreen(\'relatoriosScreen\')"]');
+    const cardUsuarios = document.getElementById('cardUsuarios');
+    
+    // ✅ ADICIONAR: Buscar cards financeiros
+    const cardFornecedores = document.getElementById('cardFornecedores');
+    const cardCompras = document.getElementById('cardCompras');
+    const cardRelatorioFinanceiro = document.getElementById('cardRelatorioFinanceiro');
+    
+    // Configurar visibilidade dos cards existentes
+    if (cardProdutos) cardProdutos.style.display = isAdmin ? 'block' : 'none';
+    if (cardEstoque) cardEstoque.style.display = isAdmin ? 'block' : 'none';
+    if (cardRelatorios) cardRelatorios.style.display = isAdmin ? 'block' : 'none';
+    if (cardUsuarios) cardUsuarios.style.display = isAdmin ? 'block' : 'none';
+    
+    // ✅ ADICIONAR: Configurar visibilidade dos cards financeiros
+    if (cardFornecedores) cardFornecedores.style.display = isAdmin ? 'block' : 'none';
+    if (cardCompras) cardCompras.style.display = isAdmin ? 'block' : 'none';
+    if (cardRelatorioFinanceiro) cardRelatorioFinanceiro.style.display = isAdmin ? 'block' : 'none';
+},
     // ==================== SUPABASE ====================
     carregarProdutos: async function() {
         try {
@@ -1677,3 +1703,4 @@ if ('serviceWorker' in navigator) {
         }
     });
 }
+
