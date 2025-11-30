@@ -6,6 +6,30 @@ import { formatarMoeda, formatarDataHora } from '../../utils/formatters.js';
 import { pdfService } from '../../services/pdfService.js';
 import { CATEGORIAS_EMOJIS } from '../../config/constants.js';
 
+// CONSTANTES DE CATEGORIAS (adicionadas para resolver o erro)
+const CATEGORIAS = [
+    { id: 'todas', nome: '🛒 Todos' },
+    { id: 'bebidas', nome: '🥤 Bebidas' },
+    { id: 'lanches', nome: '🍔 Lanches' },
+    { id: 'sobremesas', nome: '🍰 Sobremesas' },
+    { id: 'doces', nome: '🍬 Doces' },
+    { id: 'salgados', nome: '🥨 Salgados' },
+    { id: 'outros', nome: '📦 Outros' }
+];
+
+// Função auxiliar para obter ícone da categoria
+function getIconeCategoria(categoria) {
+    const icones = {
+        'bebidas': '🥤',
+        'lanches': '🍔',
+        'sobremesas': '🍰',
+        'doces': '🍬',
+        'salgados': '🥨',
+        'outros': '📦'
+    };
+    return icones[categoria] || '📦';
+}
+
 export class MesasModule {
     constructor(app) {
         this.app = app;
@@ -77,6 +101,12 @@ export class MesasModule {
         document.querySelectorAll('.mesas-filtros .btn-filtro').forEach(btn => 
             btn.classList.remove('active')
         );
+        
+        // Ativar botão do filtro atual
+        const botaoAtivo = document.querySelector(`[data-filtro="${filtro}"]`);
+        if (botaoAtivo) {
+            botaoAtivo.classList.add('active');
+        }
     }
 
     async abrirMenu(mesa) {
@@ -86,7 +116,7 @@ export class MesasModule {
             }
         } else {
             const opcao = confirm(
-                `Mesa ${mesa.numero} - R$ ${mesa.valor_total.toFixed(2)}\n\n` +
+                `Mesa ${mesa.numero} - R$ ${mesa.valor_total?.toFixed(2) || '0.00'}\n\n` +
                 `OK = Ver Comanda\nCancelar = Fechar Conta`
             );
             
@@ -102,7 +132,11 @@ export class MesasModule {
         this.mesaAtual = mesa;
         await this.app.produtos.carregar();
         
-        this.app.pagination.setup(this.app.produtos.getProdutos(), 25);
+        // Inicializar paginação se existir
+        if (this.app.pagination) {
+            this.app.pagination.setup(this.app.produtos.getProdutos(), 25);
+        }
+        
         this.carrinho = mesa.pedido_atual ? JSON.parse(mesa.pedido_atual) : [];
         
         if (mesa.status === 'livre') {
@@ -114,6 +148,8 @@ export class MesasModule {
             
             if (error) {
                 console.error('❌ Erro ao ocupar mesa:', error);
+                mostrarToast('Erro ao abrir comanda', 'error');
+                return;
             } else {
                 this.mesaAtual.status = 'ocupada';
             }
@@ -135,7 +171,7 @@ export class MesasModule {
         if (!container) return;
         
         container.innerHTML = CATEGORIAS.map(cat => `
-            <button class="btn-filtro ${this.app.pagination.currentCategory === cat.id ? 'active' : ''}" 
+            <button class="btn-filtro ${this.app.pagination?.currentCategory === cat.id ? 'active' : ''}" 
                     onclick="app.mesas.filtrarCategoria('${cat.id}')">
                 ${cat.nome}
             </button>
@@ -143,6 +179,8 @@ export class MesasModule {
     }
 
     filtrarCategoria(categoria) {
+        if (!this.app.pagination) return;
+        
         this.app.pagination.currentCategory = categoria;
         this.app.pagination.currentPage = 1;
         
@@ -157,6 +195,8 @@ export class MesasModule {
     }
 
     pesquisarProdutos() {
+        if (!this.app.pagination) return;
+        
         const termoPesquisa = document.getElementById('pesquisaMesas').value.toLowerCase().trim();
         this.app.pagination.currentPage = 1;
         this.app.pagination.filteredData = this.app.filtering.apply(
@@ -171,23 +211,34 @@ export class MesasModule {
         const lista = document.getElementById('listaProdutosComanda');
         if (!lista) return;
         
-        if (this.app.pagination.filteredData.length === 0) {
+        let produtosParaExibir = [];
+        
+        if (this.app.pagination) {
+            produtosParaExibir = this.app.pagination.getPageItems();
+        } else {
+            // Fallback: mostrar todos os produtos se paginação não estiver disponível
+            produtosParaExibir = this.app.produtos.getProdutos().slice(0, 25);
+        }
+        
+        if (produtosParaExibir.length === 0) {
             lista.innerHTML = '<div class="empty-state">Nenhum produto encontrado</div>';
-            this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
+            if (this.app.pagination) {
+                this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
+            }
             return;
         }
         
         lista.innerHTML = '';
         
-        this.app.pagination.getPageItems().forEach(produto => {
+        produtosParaExibir.forEach(produto => {
             const div = document.createElement('div');
             div.className = 'produto-card';
             div.onclick = () => this.adicionarAoCarrinho(produto.id);
             
             div.innerHTML = `
                 <h4>${produto.nome}</h4>
-                <p>R$ ${produto.preco?.toFixed(2)}</p>
-                <small>Estoque: ${produto.estoque}</small>
+                <p>R$ ${produto.preco?.toFixed(2) || '0.00'}</p>
+                <small>Estoque: ${produto.estoque || 0}</small>
                 <div class="categoria-badge-small">
                     ${getIconeCategoria(produto.categoria)} ${produto.categoria}
                 </div>
@@ -196,7 +247,9 @@ export class MesasModule {
             lista.appendChild(div);
         });
         
-        this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
+        if (this.app.pagination) {
+            this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
+        }
     }
 
     adicionarAoCarrinho(produtoId) {
@@ -242,7 +295,7 @@ export class MesasModule {
                 <div class="carrinho-item">
                     <div class="carrinho-item-info">
                         <h4>${item.nome}</h4>
-                        <p>R$ ${item.preco?.toFixed(2)} x ${item.quantidade}</p>
+                        <p>R$ ${(item.preco || 0).toFixed(2)} x ${item.quantidade}</p>
                     </div>
                     <div class="carrinho-item-acoes">
                         <span>R$ ${((item.preco || 0) * item.quantidade).toFixed(2)}</span>
@@ -253,7 +306,7 @@ export class MesasModule {
         }
         
         const total = this.carrinho.reduce((sum, item) => 
-            sum + (item.preco * item.quantidade), 0
+            sum + ((item.preco || 0) * item.quantidade), 0
         );
         
         document.getElementById('comandaTotal').textContent = total.toFixed(2);
@@ -265,6 +318,7 @@ export class MesasModule {
             this.carrinho.splice(index, 1);
             this.atualizarComanda();
             this.salvarComanda();
+            mostrarToast('Item removido', 'info');
         }
     }
 
@@ -272,7 +326,7 @@ export class MesasModule {
         if (!this.mesaAtual) return;
         
         const total = this.carrinho.reduce((sum, item) => 
-            sum + (item.preco * item.quantidade), 0
+            sum + ((item.preco || 0) * item.quantidade), 0
         );
         
         const { error } = await supabase.from('mesas').update({
@@ -283,6 +337,7 @@ export class MesasModule {
         
         if (error) {
             console.error('❌ Erro ao salvar comanda:', error);
+            mostrarToast('Erro ao salvar comanda', 'error');
         } else {
             this.mesaAtual.valor_total = total;
             this.mesaAtual.pedido_atual = JSON.stringify(this.carrinho);
@@ -303,7 +358,7 @@ export class MesasModule {
         }
         
         const total = this.carrinho.reduce((sum, item) => 
-            sum + (item.preco * item.quantidade), 0
+            sum + ((item.preco || 0) * item.quantidade), 0
         );
         
         let conteudo = `
@@ -321,14 +376,23 @@ ITENS
         
         this.carrinho.forEach(item => {
             conteudo += `\n${item.nome}\n`;
-            conteudo += `${item.quantidade}x R$ ${item.preco.toFixed(2)} = R$ ${(item.preco * item.quantidade).toFixed(2)}\n`;
+            conteudo += `${item.quantidade}x R$ ${(item.preco || 0).toFixed(2)} = R$ ${((item.preco || 0) * item.quantidade).toFixed(2)}\n`;
         });
         
         conteudo += `\n───────────────────────────────`;
         conteudo += `\nTOTAL: R$ ${total.toFixed(2)}`;
         conteudo += `\n═══════════════════════════════`;
         
-        alert(conteudo);
+        // Tenta usar a API de impressão se disponível
+        if (window.print) {
+            const janelaImpressao = window.open('', '_blank');
+            janelaImpressao.document.write(`<pre>${conteudo}</pre>`);
+            janelaImpressao.print();
+            janelaImpressao.close();
+        } else {
+            alert(conteudo);
+        }
+        
         mostrarToast('Comanda impressa!', 'info');
     }
 
@@ -354,23 +418,22 @@ ITENS
         modal.classList.add('active');
         modal.style.display = 'flex';
         
-        // Reset event listeners
+        // Configurar eventos de desconto
         const tipoDesconto = document.getElementById('modalTipoDesconto');
         const valorDesconto = document.getElementById('modalValorDesconto');
         
-        const tipoDescontoNovo = tipoDesconto.cloneNode(true);
-        const valorDescontoNovo = valorDesconto.cloneNode(true);
-        
-        tipoDesconto.parentNode.replaceChild(tipoDescontoNovo, tipoDesconto);
-        valorDesconto.parentNode.replaceChild(valorDescontoNovo, valorDesconto);
-        
-        document.getElementById('modalTipoDesconto').addEventListener('change', () => {
+        tipoDesconto.onchange = () => {
             this.calcularTotalModal();
-        });
+        };
         
-        document.getElementById('modalValorDesconto').addEventListener('input', () => {
+        valorDesconto.oninput = () => {
             this.calcularTotalModal();
-        });
+        };
+        
+        // Resetar valores
+        tipoDesconto.value = 'nenhum';
+        valorDesconto.value = '';
+        document.getElementById('modalDescontoAplicado').style.display = 'none';
     }
 
     calcularTotalModal() {
@@ -381,12 +444,17 @@ ITENS
         let desconto = 0;
         
         if (tipoDesconto !== 'nenhum' && valorDescontoInput) {
-            const valorDesconto = parseFloat(valorDescontoInput);
+            const valorDesconto = parseFloat(valorDescontoInput) || 0;
             
             if (tipoDesconto === 'percentual') {
                 desconto = (subtotal * valorDesconto) / 100;
             } else {
                 desconto = valorDesconto;
+            }
+            
+            // Limitar desconto ao valor máximo do subtotal
+            if (desconto > subtotal) {
+                desconto = subtotal;
             }
         }
         
@@ -397,7 +465,7 @@ ITENS
             document.getElementById('modalDescontoAplicado').style.display = 'none';
         }
         
-        const totalFinal = subtotal - desconto;
+        const totalFinal = Math.max(0, subtotal - desconto);
         document.getElementById('modalTotalFinal').textContent = totalFinal.toFixed(2);
     }
 
@@ -405,10 +473,6 @@ ITENS
         const modal = document.getElementById('modalFecharConta');
         modal.classList.remove('active');
         modal.style.display = 'none';
-        
-        document.getElementById('modalTipoDesconto').value = 'nenhum';
-        document.getElementById('modalValorDesconto').value = '';
-        document.getElementById('modalValorDesconto').style.display = 'none';
     }
 
     async confirmarFechamento() {
@@ -417,18 +481,27 @@ ITENS
         const valorDescontoInput = document.getElementById('modalValorDesconto').value;
         const formaPagamento = document.getElementById('modalFormaPagamento').value;
         
+        if (!formaPagamento) {
+            mostrarToast('Selecione a forma de pagamento', 'warning');
+            return;
+        }
+        
         let desconto = 0;
         
         if (tipoDesconto !== 'nenhum' && valorDescontoInput) {
-            const valorDesconto = parseFloat(valorDescontoInput);
+            const valorDesconto = parseFloat(valorDescontoInput) || 0;
             if (tipoDesconto === 'percentual') {
                 desconto = (subtotal * valorDesconto) / 100;
             } else {
                 desconto = valorDesconto;
             }
+            
+            if (desconto > subtotal) {
+                desconto = subtotal;
+            }
         }
         
-        const total = subtotal - desconto;
+        const total = Math.max(0, subtotal - desconto);
         
         const venda = {
             itens: JSON.stringify(this.carrinho),
@@ -462,17 +535,19 @@ ITENS
             }
         }
         
-        // Gerar PDF
-        setTimeout(() => {
-            gerarComprovantePDF(venda, this.mesaAtual.numero);
-        }, 500);
+        // Gerar PDF (se o serviço existir)
+        if (typeof gerarComprovantePDF === 'function') {
+            setTimeout(() => {
+                gerarComprovantePDF(venda, this.mesaAtual.numero);
+            }, 500);
+        }
         
         // Liberar mesa
         const { error } = await supabase.from('mesas').update({
             status: 'livre',
             pedido_atual: null,
             valor_total: 0
-        }).eq('id', this.mesaAtual.id).select();
+        }).eq('id', this.mesaAtual.id);
         
         if (error) {
             console.error('❌ ERRO AO LIBERAR MESA:', error);
@@ -485,7 +560,7 @@ ITENS
         const mesaNumero = this.mesaAtual.numero;
         this.mesaAtual = null;
         
-        mostrarToast(`Mesa ${mesaNumero} fechada e comprovante gerado!`, 'sucesso');
+        mostrarToast(`Mesa ${mesaNumero} fechada com sucesso!`, 'sucesso');
         await this.carregar();
         this.app.showScreen('mesasScreen');
     }
