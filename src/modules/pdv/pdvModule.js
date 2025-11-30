@@ -13,7 +13,7 @@ export class PDVModule {
 
     async carregar() {
         await this.app.produtos.carregar();
-        this.app.pagination.setup(this.app.produtos.getProdutos(), 25);
+        this.app.pagination.setup(this.app.produtos.getProdutos(), 5); // Alterado para 5 produtos por página
         this.app.pagination.currentCategory = 'todas';
         
         const inputPesquisa = document.getElementById('pesquisaPDV');
@@ -67,7 +67,7 @@ export class PDVModule {
         
         if (this.app.pagination.filteredData.length === 0) {
             lista.innerHTML = '<div class="empty-state">Nenhum produto encontrado</div>';
-            this.app.pagination.renderPaginationControls('paginacaoPDV', this.renderizarProdutos.bind(this));
+            this.renderizarControlesPaginacao();
             return;
         }
         
@@ -80,8 +80,8 @@ export class PDVModule {
             
             div.innerHTML = `
                 <h4>${produto.nome}</h4>
-                <p>R$ ${produto.preco?.toFixed(2)}</p>
-                <small>Estoque: ${produto.estoque}</small>
+                <p class="produto-preco">R$ ${produto.preco?.toFixed(2)}</p>
+                <small class="produto-estoque">Estoque: ${produto.estoque}</small>
                 <div class="categoria-badge-small">
                     ${getIconeCategoria(produto.categoria)} ${produto.categoria}
                 </div>
@@ -90,7 +90,53 @@ export class PDVModule {
             lista.appendChild(div);
         });
         
-        this.app.pagination.renderPaginationControls('paginacaoPDV', this.renderizarProdutos.bind(this));
+        this.renderizarControlesPaginacao();
+    }
+
+    renderizarControlesPaginacao() {
+        const container = document.getElementById('paginacaoPDV');
+        if (!container) return;
+
+        const totalPages = Math.ceil(this.app.pagination.filteredData.length / this.app.pagination.itemsPerPage);
+        const currentPage = this.app.pagination.currentPage;
+
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="pagination-controls">
+                <button class="btn-pagination" 
+                        onclick="app.pdv.paginaAnterior()" 
+                        ${currentPage === 1 ? 'disabled' : ''}>
+                    ← Anterior
+                </button>
+                <span class="pagination-info">
+                    Página ${currentPage} de ${totalPages}
+                </span>
+                <button class="btn-pagination" 
+                        onclick="app.pdv.proximaPagina()" 
+                        ${currentPage === totalPages ? 'disabled' : ''}>
+                    Próxima →
+                </button>
+            </div>
+        `;
+    }
+
+    proximaPagina() {
+        const totalPages = Math.ceil(this.app.pagination.filteredData.length / this.app.pagination.itemsPerPage);
+        if (this.app.pagination.currentPage < totalPages) {
+            this.app.pagination.currentPage++;
+            this.renderizarProdutos();
+        }
+    }
+
+    paginaAnterior() {
+        if (this.app.pagination.currentPage > 1) {
+            this.app.pagination.currentPage--;
+            this.renderizarProdutos();
+        }
     }
 
     adicionarAoCarrinho(produtoId) {
