@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de PDV e Controle de Estoque - Doce Jardim">
+    <meta name="theme-color" content="#C8A8D8">
+    <meta name="author" content="Doce Jardim">
+    <meta name="keywords" content="pdv, estoque, vendas, controle">
+    
+    <title>Doce Jardim - Sistema PDV</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://utykuriccvvhitlrdqcw.supabase.co">
+    
+    <meta property="og:title" content="Doce Jardim - Sistema PDV">
+    <meta property="og:description" content="Sistema moderno e eficiente para PDV e controle de estoque.">
+    <meta property="og:image" content="./icons/icon-192x192.png">
+    <meta property="og:url" content="#">
+    <meta property="og:type" content="website">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Comfortaa:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles-responsive.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <link rel="icon" type="image/png" href="icons/icon-192x192.png">
+    
+    <!-- CSS ADICIONAL PARA MÓDULOS FINANCEIROS -->
+    <style>
+    .form-row {
+        display: flex;
+        gap: 15px;
+        align-items: flex-end;
+    }
+
+    .form-row .form-group {
+        flex: 1;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1em;
+    }
+
+    .relatorio-colunas {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .relatorio-colunas {
+            grid-template-columns: 1fr;
+        }
+        
+        .form-row {
+            flex-direction: column;
+            gap: 10px;
+        }
+    }
+
+    .stats-grid-financeiro {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .stat-card-fin {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .stat-card-fin.investimento {
+        border-left: 4px solid #f44336;
+    }
+
+    .stat-card-fin.faturamento {
+        border-left: 4px solid #4CAF50;
+    }
+
+    .stat-card-fin.lucro {
+        border-left: 4px solid #2196F3;
+    }
+
+    .stat-card-fin.margem {
+        border-left: 4px solid #FF9800;
+    }
+
+    .stat-icone {
+        font-size: 2.5em;
+    }
+
+    .stat-info h4 {
+        margin: 0;
+        font-size: 0.9em;
+        color: #666;
+    }
+
+    .stat-valor {
+        margin: 5px 0 0 0;
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .produto-lucro-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px;
+        background: #f9f9f9;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border-left: 4px solid #4CAF50;
+    }
+
+    .produto-lucro-info h4 {
+        margin: 0 0 5px 0;
+        font-size: 1em;
+    }
+
+    .produto-lucro-info p {
+        margin: 0;
+        font-size: 0.85em;
+        color: #666;
+    }
+
+    .produto-lucro-valores {
+        text-align: right;
+    }
+
+    .produto-lucro-valores small {
+        display: block;
+        color: #999;
+        margin-bottom: 5px;
+    }
+
+    .produto-lucro-valores strong {
+        font-size: 1.1em;
+    }
+
+    .filtros-financeiro {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+
+    .filtro-data {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+    }
+
+    .resumo-periodo {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        text-align: center;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .modal-actions button {
+        flex: 1;
+    }
+    </style>
+</head>
+<body>
+    <!-- TELA DE LOGIN -->
+    <div id="loginScreen" class="screen active">
+        <main>
+            <div class="login-container">
+                <div class="login-header">
+                    <h1>doce jardim</h1>
+                    <p>Sistema de PDV e Estoque</p>
+                </div>
+                <div class="login-form">
+                    <label for="loginUser" class="sr-only">Usuário</label>
+                    <input type="text" id="loginUser" placeholder="Usuário" autocomplete="username">
+                    
+                    <label for="loginPass" class="sr-only">Senha</label>
+                    <input type="password" id="loginPass" placeholder="Senha" autocomplete="current-password">
+                    
+                    <button onclick="app.auth.login()" class="btn-primary">Entrar</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA PRINCIPAL (DASHBOARD) -->
+    <div id="dashboardScreen" class="screen">
+        <header class="app-header">
+            <h1>doce jardim</h1>
+            <button onclick="location.reload()" class="btn-logout" aria-label="Sair do sistema">Sair</button>
+        </header>
+
+        <main>
+            <div class="dashboard-container">
+                <h2>Menu Principal</h2>
+                
+                <div class="dashboard-grid">
+                    <div class="dashboard-card" onclick="app.showScreen('mesasScreen')" role="button" tabindex="0">
+                        <div class="card-icon">🪑</div>
+                        <h3>Mesas</h3>
+                        <p>Gerenciar comandas</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('pdvScreen')" role="button" tabindex="0">
+                        <div class="card-icon">💰</div>
+                        <h3>PDV Direto</h3>
+                        <p>Venda rápida</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('produtosScreen')" role="button" tabindex="0">
+                        <div class="card-icon">📝</div>
+                        <h3>Produtos</h3>
+                        <p>Cadastrar produtos</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('estoqueScreen')" role="button" tabindex="0">
+                        <div class="card-icon">📦</div>
+                        <h3>Estoque</h3>
+                        <p>Controle de estoque</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('relatoriosScreen')" role="button" tabindex="0">
+                        <div class="card-icon">📊</div>
+                        <h3>Relatórios</h3>
+                        <p>Vendas e estatísticas</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('usuariosScreen')" role="button" tabindex="0" id="cardUsuarios">
+                        <div class="card-icon">👥</div>
+                        <h3>Usuários</h3>
+                        <p>Gerenciar usuários</p>
+                    </div>
+
+                    <!-- CARDS FINANCEIROS (ocultos - apenas admin) -->
+                    <div class="dashboard-card" onclick="app.showScreen('fornecedoresScreen')" role="button" tabindex="0" id="cardFornecedores" style="display: none;">
+                        <div class="card-icon">🏢</div>
+                        <h3>Fornecedores</h3>
+                        <p>Gerenciar fornecedores</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('comprasScreen')" role="button" tabindex="0" id="cardCompras" style="display: none;">
+                        <div class="card-icon">📦</div>
+                        <h3>Compras</h3>
+                        <p>Registrar investimentos</p>
+                    </div>
+
+                    <div class="dashboard-card" onclick="app.showScreen('relatorioFinanceiroScreen')" role="button" tabindex="0" id="cardRelatorioFinanceiro" style="display: none;">
+                        <div class="card-icon">💰</div>
+                        <h3>Relatório Financeiro</h3>
+                        <p>Lucros e investimentos</p>
+                    </div>
+                </div>
+
+                <button id="installBtnDash" class="btn-install-dash hidden" onclick="window.installApp()">
+                    📱 Instalar App no Celular
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA MESAS -->
+    <div id="mesasScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1>🪑 Gerenciamento de Mesas</h1>
+        </header>
+
+        <main>
+            <div class="mesas-container">
+                <div class="mesas-filtros">
+                    <button onclick="app.mesas.filtrar('todas')" class="btn-filtro active" id="filtroTodasMesas">Todas</button>
+                    <button onclick="app.mesas.filtrar('ocupadas')" class="btn-filtro" id="filtroOcupadas">Ocupadas</button>
+                    <button onclick="app.mesas.filtrar('livres')" class="btn-filtro" id="filtroLivres">Livres</button>
+                </div>
+
+                <div id="listaMesas" class="mesas-grid"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA COMANDA DA MESA -->
+    <div id="comandaScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.mesas.voltarParaMesas()" class="btn-back">← Voltar</button>
+            <h1 id="comandaTitulo">📋 Mesa 1</h1>
+        </header>
+
+        <main>
+            <div class="pdv-container">
+                <div class="search-section">
+                   <input type="text" id="pesquisaMesas" placeholder="🔍 Pesquisar produtos..." 
+                          oninput="app.mesas.pesquisarProdutos()" class="pesquisa-produto mesas">
+                </div>
+                
+                <div class="categorias-container">
+                    <div id="categoriasMesas" class="categorias-buttons"></div>
+                </div>
+
+                <div class="pdv-produtos">
+                    <h3>Adicionar Produtos</h3>
+                    <div id="listaProdutosComanda" class="produtos-grid"></div>
+                    <div id="paginacaoMesas" class="paginacao" style="display: none;"></div>
+                </div>
+
+                <div class="pdv-carrinho">
+                    <h3>Itens da Comanda</h3>
+                    <div id="comandaItens" class="carrinho-lista">
+                        <div class="empty-state">Comanda vazia</div>
+                    </div>
+
+                    <div class="carrinho-total">
+                        <h2>Total: R$ <span id="comandaTotal">0.00</span></h2>
+                        
+                        <button onclick="app.mesas.imprimirComanda()" class="btn-secondary">🖨️ Imprimir Comanda</button>
+                        <button onclick="app.mesas.finalizarComanda()" class="btn-primary btn-large">Fechar Conta</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA PDV DIRETO -->
+    <div id="pdvScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1>💰 PDV - Venda Direta</h1>
+        </header>
+
+        <main>
+            <div class="pdv-container">
+                <div class="pdv-produtos">
+                    <h3>Produtos Disponíveis</h3>
+                    
+                    <div class="search-section">
+                        <input type="text" id="pesquisaPDV" placeholder="🔍 Pesquisar produto..." 
+                               oninput="app.pdv.pesquisar()" class="pesquisa-produto pdv">
+                    </div>
+                    
+                    <div class="categorias-container">
+                        <div id="categoriasPDV" class="categorias-buttons"></div>
+                    </div>
+                    
+                    <div id="listaProdutosPDV" class="produtos-grid">
+                        <div class="loading">Carregando produtos...</div>
+                    </div>
+                    
+                    <div id="paginacaoPDV" class="paginacao" style="display: none;"></div>
+                </div>
+
+                <div class="pdv-carrinho">
+                    <h3>Carrinho</h3>
+                    <div id="carrinhoItens" class="carrinho-lista">
+                        <div class="empty-state">Carrinho vazio</div>
+                    </div>
+                    
+                    <div class="carrinho-desconto">
+                        <label for="tipoDesconto">Desconto:</label>
+                        <select id="tipoDesconto">
+                            <option value="nenhum">Sem desconto</option>
+                            <option value="percentual">% Percentual</option>
+                            <option value="reais">R$ Reais</option>
+                        </select>
+                        <input type="number" id="valorDesconto" placeholder="0" min="0" step="0.01" style="display: none;" aria-label="Valor do desconto">
+                    </div>
+
+                    <div class="carrinho-total">
+                        <div class="total-detalhes">
+                            <p>Subtotal: R$ <span id="subtotalCarrinho">0.00</span></p>
+                            <p class="desconto-aplicado" id="descontoAplicado" style="display: none;">Desconto: -R$ <span id="valorDescontoAplicado">0.00</span></p>
+                            <h2>Total: R$ <span id="carrinhoTotal">0.00</span></h2>
+                        </div>
+                        
+                        <div class="forma-pagamento">
+                            <label for="formaPagamento">Forma de Pagamento:</label>
+                            <select id="formaPagamento">
+                                <option value="dinheiro">💵 Dinheiro</option>
+                                <option value="pix">📱 PIX</option>
+                                <option value="credito">💳 Cartão Crédito</option>
+                                <option value="debito">💳 Cartão Débito</option>
+                            </select>
+                        </div>
+
+                        <button onclick="app.pdv.finalizarVenda()" class="btn-primary btn-large" id="finalizarVenda">Finalizar Venda</button>
+                        <button onclick="app.pdv.limparCarrinho()" class="btn-secondary">Limpar Carrinho</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA PRODUTOS -->
+    <div id="produtosScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1>📝 Cadastro de Produtos</h1>
+        </header>
+
+        <main>
+            <div class="content-container">
+                <div class="form-card">
+                    <h3>Novo Produto</h3>
+                    <label for="produtoNome" class="sr-only">Nome do produto</label>
+                    <input type="text" id="produtoNome" placeholder="Nome do produto" required>
+                    
+                    <label for="produtoPreco" class="sr-only">Preço</label>
+                    <input type="number" id="produtoPreco" placeholder="Preço (R$)" step="0.01" min="0" required>
+                    
+                    <label for="produtoEstoque" class="sr-only">Estoque</label>
+                    <input type="number" id="produtoEstoque" placeholder="Quantidade em estoque" min="0" required>
+                    
+                    <label for="produtoCategoria" class="sr-only">Categoria</label>
+                    <select id="produtoCategoria" required>
+                        <option value="">Selecione a categoria</option>
+                        <option value="lanches">🥪 Lanches</option>
+                        <option value="salgados">🥟 Salgados</option>
+                        <option value="bolos">🍰 Bolos</option>
+                        <option value="bebidas">🥤 Bebidas</option>
+                        <option value="sobremesa">🍨 Sobremesas</option>
+                        <option value="bomboniere">🍬 Bomboniere</option>
+                    </select>
+                    
+                    <button onclick="app.produtos.adicionar()" class="btn-primary" id="adicionarProduto">Adicionar Produto</button>
+                </div>
+
+                <div class="lista-produtos">
+                    <h3>Produtos Cadastrados</h3>
+                    
+                    <div class="search-section">
+                        <input type="text" id="pesquisaProduto" placeholder="🔍 Pesquisar produto..." 
+                               oninput="app.produtos.pesquisar()" class="pesquisa-produto">
+                    </div>
+                    
+                    <div id="listaProdutos">
+                        <div class="loading">Carregando produtos...</div>
+                    </div>
+                    
+                    <div class="paginacao" id="paginacaoProdutos" style="display: none;"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA ESTOQUE -->
+    <div id="estoqueScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1>📦 Controle de Estoque</h1>
+        </header>
+
+        <main>
+            <div class="content-container">
+                <div id="listaEstoque">
+                    <div class="loading">Carregando estoque...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA RELATÓRIOS -->
+    <div id="relatoriosScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1>📊 Relatórios de Vendas</h1>
+        </header>
+
+        <main>
+            <div class="content-container">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Vendas Hoje</h3>
+                        <p class="stat-value">R$ <span id="vendasHoje">0.00</span></p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total de Vendas</h3>
+                        <p class="stat-value"><span id="totalVendas">0</span></p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Produtos Vendidos</h3>
+                        <p class="stat-value"><span id="produtosVendidos">0</span></p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Ticket Médio</h3>
+                        <p class="stat-value">R$ <span id="ticketMedio">0.00</span></p>
+                    </div>
+                </div>
+
+                <div class="historico-vendas">
+                    <h3>Histórico de Vendas</h3>
+                    <div class="filtros-vendas">
+                        <div class="filtros-buttons">
+                            <button onclick="app.relatorios.filtrarVendas('hoje')" class="btn-filtro active" id="filtroHoje">Hoje</button>
+                            <button onclick="app.relatorios.filtrarVendas('semana')" class="btn-filtro" id="filtroSemana">Esta Semana</button>
+                            <button onclick="app.relatorios.filtrarVendas('mes')" class="btn-filtro" id="filtroMes">Este Mês</button>
+                            <button onclick="app.relatorios.filtrarVendas('todas')" class="btn-filtro" id="filtroTodas">Todas</button>
+                            <div class="filtro-usuario">
+                                <label for="filtroUsuario">Filtrar por usuário:</label>
+                                <select id="filtroUsuario" onchange="app.relatorios.filtrarPorUsuario()">
+                                    <option value="todos">Todos os usuários</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="filtro-periodo">
+                            <label for="dataInicio">Período personalizado:</label>
+                            <input type="date" id="dataInicio" aria-label="Data inicial">
+                            <input type="date" id="dataFim" aria-label="Data final">
+                            <button onclick="app.relatorios.filtrarPorPeriodo()" class="btn-filtro-custom">Buscar Período</button>
+                        </div>
+                    </div>
+                    <div id="historicoVendas">
+                        <div class="loading">Carregando histórico...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA USUÁRIOS -->
+    <div id="usuariosScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1>👥 Gerenciamento de Usuários</h1>
+        </header>
+
+        <main>
+            <div class="content-container">
+                <div class="form-card">
+                    <h3>Novo Usuário</h3>
+                    <label for="usuarioNome" class="sr-only">Nome do usuário</label>
+                    <input type="text" id="usuarioNome" placeholder="Nome completo" required>
+                    
+                    <label for="usuarioLogin" class="sr-only">Login</label>
+                    <input type="text" id="usuarioLogin" placeholder="Login (usuário)" required>
+                    
+                    <label for="usuarioSenha" class="sr-only">Senha</label>
+                    <input type="password" id="usuarioSenha" placeholder="Senha" required>
+                    
+                    <label for="usuarioTipo" class="sr-only">Tipo de usuário</label>
+                    <select id="usuarioTipo" required>
+                        <option value="">Selecione o tipo</option>
+                        <option value="administrador">👑 Administrador</option>
+                        <option value="normal">👤 Usuário Normal</option>
+                    </select>
+                    
+                    <button onclick="app.usuarios.adicionar()" class="btn-primary" id="adicionarUsuario">Adicionar Usuário</button>
+                </div>
+
+                <div class="lista-produtos">
+                    <h3>Usuários Cadastrados</h3>
+                    
+                    <div class="search-section">
+                        <input type="text" id="pesquisaUsuario" placeholder="🔍 Pesquisar usuário..." 
+                               oninput="app.usuarios.pesquisar()" class="search-input">
+                    </div>
+                    
+                    <div id="listaUsuarios">
+                        <div class="loading">Carregando usuários...</div>
+                    </div>
+                    
+                    <div class="paginacao" id="paginacaoUsuarios" style="display: none;"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA FORNECEDORES -->
+    <div id="fornecedoresScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1>🏢 Fornecedores</h1>
+        </header>
+
+        <main>
+            <div class="content-container">
+                <div class="form-card">
+                    <h3>Cadastrar Novo Fornecedor</h3>
+                    <div class="form-group">
+                        <label>Nome do Fornecedor *</label>
+                        <input type="text" id="fornecedorNome" placeholder="Ex: Distribuidora ABC">
+                    </div>
+                    <div class="form-group">
+                        <label>CNPJ</label>
+                        <input type="text" id="fornecedorCNPJ" placeholder="00.000.000/0000-00">
+                    </div>
+                    <div class="form-group">
+                        <label>Contato (Telefone/Email)</label>
+                        <input type="text" id="fornecedorContato" placeholder="(00) 00000-0000 ou email@exemplo.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Endereço</label>
+                        <input type="text" id="fornecedorEndereco" placeholder="Rua, número, bairro, cidade">
+                    </div>
+                    <div class="form-group">
+                        <label>Observações</label>
+                        <textarea id="fornecedorObservacoes" rows="3" placeholder="Informações adicionais..."></textarea>
+                    </div>
+                    <button id="adicionarFornecedor" onclick="app.fornecedores.adicionar()" class="btn-primary">
+                        Adicionar Fornecedor
+                    </button>
+                </div>
+
+                <div class="lista-produtos">
+                    <h3>Fornecedores Cadastrados</h3>
+                    <div class="search-section">
+                        <input type="text" id="pesquisaFornecedor" placeholder="🔍 Buscar fornecedor..." 
+                               oninput="app.fornecedores.pesquisar()">
+                    </div>
+                    <div id="listaFornecedores"></div>
+                    <div id="paginacaoFornecedores" class="paginacao"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA COMPRAS -->
+    <div id="comprasScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1>📦 Compras / Investimentos</h1>
+        </header>
+
+        <main>
+            <div class="content-container">
+                <div class="form-card">
+                    <h3>Registrar Nova Compra</h3>
+                    
+                    <div class="form-group">
+                        <label>Fornecedor *</label>
+                        <select id="compraFornecedor">
+                            <option value="">Selecione um fornecedor</option>
+                        </select>
+                    </div>
+
+                    <hr style="margin: 20px 0;">
+                    <h4>Adicionar Produtos</h4>
+
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2;">
+                            <label>Produto *</label>
+                            <select id="compraProduto">
+                                <option value="">Selecione um produto</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Quantidade *</label>
+                            <input type="number" id="compraQuantidade" value="1" min="1">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Valor de Custo (un.) *</label>
+                            <input type="number" id="compraValorCusto" placeholder="0.00" step="0.01" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Valor de Venda (un.) *</label>
+                            <input type="number" id="compraValorVenda" placeholder="0.00" step="0.01" min="0">
+                        </div>
+                    </div>
+
+                    <button onclick="app.compras.adicionarItem()" class="btn-secondary" style="width: 100%; margin-bottom: 20px;">
+                        ➕ Adicionar Item
+                    </button>
+
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin-top: 0;">Itens da Compra</h4>
+                        <div id="itensCompraLista"></div>
+                        <div style="text-align: right; margin-top: 10px; font-size: 1.2em;">
+                            <strong>Total: R$ <span id="totalCompra">0.00</span></strong>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Observações</label>
+                        <textarea id="compraObservacoes" rows="3" placeholder="Informações adicionais sobre a compra..."></textarea>
+                    </div>
+
+                    <button id="finalizarCompra" onclick="app.compras.finalizar()" class="btn-primary" style="width: 100%;">
+                        💾 Finalizar Compra
+                    </button>
+                </div>
+
+                <div class="lista-produtos">
+                    <h3>Histórico de Compras</h3>
+                    <div id="listaCompras"></div>
+                    <div id="paginacaoCompras" class="paginacao"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TELA RELATÓRIO FINANCEIRO -->
+    <div id="relatorioFinanceiroScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1>💰 Relatório Financeiro</h1>
+        </header>
+
+        <main>
+            <div class="content-container">
+                <div class="stats-grid-financeiro">
+                    <div class="stat-card-fin investimento">
+                        <div class="stat-icone">📤</div>
+                        <div class="stat-info">
+                            <h4>Total Investido</h4>
+                            <p class="stat-valor">R$ <span id="totalInvestido">0.00</span></p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card-fin faturamento">
+                        <div class="stat-icone">📥</div>
+                        <div class="stat-info">
+                            <h4>Total Vendido</h4>
+                            <p class="stat-valor">R$ <span id="totalVendido">0.00</span></p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card-fin lucro">
+                        <div class="stat-icone">💰</div>
+                        <div class="stat-info">
+                            <h4>Lucro Real</h4>
+                            <p class="stat-valor">R$ <span id="lucroReal">0.00</span></p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card-fin margem">
+                        <div class="stat-icone">📊</div>
+                        <div class="stat-info">
+                            <h4>Margem de Lucro</h4>
+                            <p class="stat-valor"><span id="margemLucro">0.0</span>%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-card">
+                    <h3>Filtrar Período</h3>
+                    <div class="filtros-financeiro filtros-buttons">
+                        <button id="filtroFinanceiroHoje" class="btn-filtro active" onclick="app.relatorioFinanceiro.filtrar('hoje')">
+                            📅 Hoje
+                        </button>
+                        <button id="filtroFinanceiroSemana" class="btn-filtro" onclick="app.relatorioFinanceiro.filtrar('semana')">
+                            📅 Esta Semana
+                        </button>
+                        <button id="filtroFinanceiroMes" class="btn-filtro" onclick="app.relatorioFinanceiro.filtrar('mes')">
+                            📅 Este Mês
+                        </button>
+                        <button id="filtroFinanceiroTodas" class="btn-filtro" onclick="app.relatorioFinanceiro.filtrar('todas')">
+                            📅 Todas
+                        </button>
+                    </div>
+
+                    <div class="filtro-data">
+                        <h4>Período Personalizado</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Data Início</label>
+                                <input type="date" id="financeiroDataInicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Data Fim</label>
+                                <input type="date" id="financeiroDataFim">
+                            </div>
+                            <button onclick="app.relatorioFinanceiro.filtrarPorPeriodo()" class="btn-primary">Filtrar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-card">
+                    <h3>📊 Produtos Mais Lucrativos</h3>
+                    <div id="produtosMaisLucrativos"></div>
+                </div>
+
+                <div class="relatorio-colunas">
+                    <div class="form-card">
+                        <h3>📦 Compras do Período</h3>
+                        <div id="historicoComprasFinanceiro"></div>
+                    </div>
+
+                    <div class="form-card">
+                        <h3>💰 Vendas do Período</h3>
+                        <div id="historicoVendasFinanceiro"></div>
+                    </div>
+                </div>
+
+                <div class="exportar-pdf-container" style="text-align: center; margin: 20px 0;">
+                    <button onclick="app.relatorioFinanceiro.exportarPDF()" class="btn-primary" style="padding: 15px 30px; font-size: 1.1em;">
+                        📄 Exportar Relatório Completo em PDF
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAIS -->
+
+    <!-- MODAL EDITAR PRODUTO -->
+    <div id="modalEditarProduto" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="app.produtos.fecharModalEdicao()" aria-label="Fechar modal">×</span>
+            <h3>Editar Produto</h3>
+            
+            <input type="hidden" id="editProdutoId">
+            
+            <label for="editProdutoNome" class="sr-only">Nome do produto</label>
+            <input type="text" id="editProdutoNome" placeholder="Nome do produto" required>
+            
+            <label for="editProdutoPreco" class="sr-only">Preço</label>
+            <input type="number" id="editProdutoPreco" placeholder="Preço (R$)" step="0.01" min="0" required>
+            
+            <label for="editProdutoEstoque" class="sr-only">Estoque</label>
+            <input type="number" id="editProdutoEstoque" placeholder="Quantidade em estoque" min="0" required>
+            
+            <label for="editProdutoCategoria" class="sr-only">Categoria</label>
+            <select id="editProdutoCategoria" required>
+                <option value="">Selecione a categoria</option>
+                <option value="lanches">🥪 Lanches</option>
+                <option value="salgados">🥟 Salgados</option>
+                <option value="bolos">🍰 Bolos</option>
+                <option value="bebidas">🥤 Bebidas</option>
+                <option value="sobremesa">🍨 Sobremesas</option>
+                <option value="bomboniere">🍬 Bomboniere</option>
+            </select>
+            
+            <button onclick="app.produtos.salvarEdicao()" class="btn-primary">Salvar Alterações</button>
+            <button onclick="app.produtos.fecharModalEdicao()" class="btn-secondary">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR USUÁRIO -->
+    <div id="modalEditarUsuario" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="app.usuarios.fecharModalEdicao()" aria-label="Fechar modal">×</span>
+            <h3>Editar Usuário</h3>
+            
+            <input type="hidden" id="editUsuarioId">
+            
+            <label for="editUsuarioNome" class="sr-only">Nome do usuário</label>
+            <input type="text" id="editUsuarioNome" placeholder="Nome completo" required>
+            
+            <label for="editUsuarioLogin" class="sr-only">Login</label>
+            <input type="text" id="editUsuarioLogin" placeholder="Login (usuário)" required>
+            
+            <label for="editUsuarioSenha" class="sr-only">Nova senha (deixe em branco para manter)</label>
+            <input type="password" id="editUsuarioSenha" placeholder="Nova senha (deixe em branco para manter)">
+            
+            <label for="editUsuarioTipo" class="sr-only">Tipo de usuário</label>
+            <select id="editUsuarioTipo" required>
+                <option value="administrador">👑 Administrador</option>
+                <option value="normal">👤 Usuário Normal</option>
+            </select>
+            
+            <button onclick="app.usuarios.salvarEdicao()" class="btn-primary">Salvar Alterações</button>
+            <button onclick="app.usuarios.fecharModalEdicao()" class="btn-secondary">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR FORNECEDOR -->
+    <div id="modalEditarFornecedor" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="app.fornecedores.fecharModalEdicao()" aria-label="Fechar modal">×</span>
+            <h3>Editar Fornecedor</h3>
+            <input type="hidden" id="editFornecedorId">
+            
+            <div class="form-group">
+                <label>Nome *</label>
+                <input type="text" id="editFornecedorNome">
+            </div>
+            <div class="form-group">
+                <label>CNPJ</label>
+                <input type="text" id="editFornecedorCNPJ">
+            </div>
+            <div class="form-group">
+                <label>Contato</label>
+                <input type="text" id="editFornecedorContato">
+            </div>
+            <div class="form-group">
+                <label>Endereço</label>
+                <input type="text" id="editFornecedorEndereco">
+            </div>
+            <div class="form-group">
+                <label>Observações</label>
+                <textarea id="editFornecedorObservacoes" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="editFornecedorAtivo" checked> Fornecedor Ativo
+                </label>
+            </div>
+            
+            <div class="modal-actions">
+                <button onclick="app.fornecedores.salvarEdicao()" class="btn-primary">Salvar</button>
+                <button onclick="app.fornecedores.fecharModalEdicao()" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FECHAR CONTA -->
+    <div id="modalFecharConta" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="app.mesas.fecharModalConta()" aria-label="Fechar modal">×</span>
+            <h3>💳 Fechar Conta - Mesa <span id="modalMesaNumero"></span></h3>
+            
+            <div class="modal-total">
+                <h2>Total: R$ <span id="modalTotalConta">0.00</span></h2>
+            </div>
+
+            <div class="carrinho-desconto">
+                <label for="modalTipoDesconto">Desconto:</label>
+                <select id="modalTipoDesconto">
+                    <option value="nenhum">Sem desconto</option>
+                    <option value="percentual">% Percentual</option>
+                    <option value="reais">R$ Reais</option>
+                </select>
+                <input type="number" id="modalValorDesconto" placeholder="0" min="0" step="0.01" style="display: none;">
+            </div>
+
+            <div class="total-detalhes" style="margin: 15px 0;">
+                <p>Subtotal: R$ <span id="modalSubtotal">0.00</span></p>
+                <p class="desconto-aplicado" id="modalDescontoAplicado" style="display: none;">Desconto: -R$ <span id="modalValorDescontoAplicado">0.00</span></p>
+                <h3 style="color: #C8A8D8; margin-top: 10px;">Total Final: R$ <span id="modalTotalFinal">0.00</span></h3>
+            </div>
+            
+            <div class="forma-pagamento">
+                <label for="modalFormaPagamento">Forma de Pagamento:</label>
+                <select id="modalFormaPagamento">
+                    <option value="dinheiro">💵 Dinheiro</option>
+                    <option value="pix">📱 PIX</option>
+                    <option value="credito">💳 Cartão Crédito</option>
+                    <option value="debito">💳 Cartão Débito</option>
+                </select>
+            </div>
+            
+            <button onclick="app.mesas.confirmarFechamento()" class="btn-primary btn-large">Confirmar Pagamento</button>
+            <button onclick="app.mesas.fecharModalConta()" class="btn-secondary">Cancelar</button>
+        </div>
+    </div>
+
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- Aplicação Principal (MODULAR) -->
+    <script type="module" src="./src/app.js"></script>
+</body>
+</html>

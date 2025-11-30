@@ -1,11 +1,9 @@
 // sw.js - Service Worker para PWA
 
-const CACHE_NAME = 'doce-jardim-v1.0.0'; // Incremente a versão quando houver updates
+const CACHE_NAME = 'doce-jardim-v1.0.0';
 const urlsToCache = [
   '/',
-  '/index.html',
-  '/styles.css'
-  // Adicione outros recursos estáticos aqui
+  '/index.html'
 ];
 
 // Instalação do Service Worker
@@ -19,7 +17,6 @@ self.addEventListener('install', event => {
         return cache.addAll(urlsToCache);
       })
       .then(() => {
-        // Força a ativação imediata
         return self.skipWaiting();
       })
   );
@@ -41,11 +38,9 @@ self.addEventListener('activate', event => {
       );
     })
     .then(() => {
-      // Assume controle de todas as páginas imediatamente
       return self.clients.claim();
     })
     .then(() => {
-      // Notifica todos os clientes sobre a nova versão
       return self.clients.matchAll().then(clients => {
         clients.forEach(client => {
           client.postMessage({
@@ -60,20 +55,35 @@ self.addEventListener('activate', event => {
 
 // Interceptar requisições (estratégia Network First)
 self.addEventListener('fetch', event => {
+  // Ignorar requisições de extensões do Chrome e protocolos não HTTP(S)
+  const url = new URL(event.request.url);
+  if (
+    url.protocol !== 'http:' && 
+    url.protocol !== 'https:' ||
+    event.request.url.startsWith('chrome-extension://')
+  ) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Clona a resposta antes de armazenar
+        // Só fazer cache de respostas válidas
+        if (!response || response.status !== 200 || response.type === 'error') {
+          return response;
+        }
+
         const responseToCache = response.clone();
         
         caches.open(CACHE_NAME).then(cache => {
           cache.put(event.request, responseToCache);
+        }).catch(err => {
+          console.error('Erro ao salvar no cache:', err);
         });
         
         return response;
       })
       .catch(() => {
-        // Se falhar, tenta buscar do cache
         return caches.match(event.request);
       })
   );
