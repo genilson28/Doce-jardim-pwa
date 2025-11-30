@@ -13,7 +13,7 @@ export class PDVModule {
 
     async carregar() {
         await this.app.produtos.carregar();
-        this.app.pagination.setup(this.app.produtos.getProdutos(), 5); // Alterado para 5 produtos por página
+        this.app.pagination.setup(this.app.produtos.getProdutos(), 5);
         this.app.pagination.currentCategory = 'todas';
         
         const inputPesquisa = document.getElementById('pesquisaPDV');
@@ -29,9 +29,11 @@ export class PDVModule {
         if (!container) return;
         
         container.innerHTML = CATEGORIAS.map(cat => `
-            <button class="btn-filtro ${this.app.pagination.currentCategory === cat.id ? 'active' : ''}" 
-                    onclick="app.pdv.filtrarCategoria('${cat.id}')">
-                ${cat.nome}
+            <button class="categoria-btn ${this.app.pagination.currentCategory === cat.id ? 'active' : ''}" 
+                    onclick="app.pdv.filtrarCategoria('${cat.id}')"
+                    aria-label="Filtrar por ${cat.nome}">
+                <span class="categoria-icon">${getIconeCategoria(cat.id)}</span>
+                <span class="categoria-nome">${cat.nome}</span>
             </button>
         `).join('');
     }
@@ -47,6 +49,7 @@ export class PDVModule {
             categoria
         );
         
+        this.renderizarCategorias();
         this.renderizarProdutos();
     }
 
@@ -75,15 +78,39 @@ export class PDVModule {
         
         this.app.pagination.getPageItems().forEach(produto => {
             const div = document.createElement('div');
-            div.className = 'produto-card';
+            div.className = 'produto-card-pdv';
+            
+            // Definir classe de estoque
+            let estoqueClass = 'estoque-ok';
+            if (produto.estoque === 0) estoqueClass = 'estoque-zero';
+            else if (produto.estoque <= 5) estoqueClass = 'estoque-baixo';
+            
             div.onclick = () => this.adicionarAoCarrinho(produto.id);
             
             div.innerHTML = `
-                <h4>${produto.nome}</h4>
-                <p class="produto-preco">R$ ${produto.preco?.toFixed(2)}</p>
-                <small class="produto-estoque">Estoque: ${produto.estoque}</small>
-                <div class="categoria-badge-small">
-                    ${getIconeCategoria(produto.categoria)} ${produto.categoria}
+                <div class="produto-card-header">
+                    <div class="produto-icon">
+                        ${getIconeCategoria(produto.categoria)}
+                    </div>
+                    <div class="produto-estoque-badge ${estoqueClass}">
+                        ${produto.estoque}
+                    </div>
+                </div>
+                <div class="produto-card-body">
+                    <h4 class="produto-nome">${produto.nome}</h4>
+                    <div class="produto-categoria-tag">
+                        ${produto.categoria}
+                    </div>
+                </div>
+                <div class="produto-card-footer">
+                    <div class="produto-preco-container">
+                        <span class="produto-preco-label">Preço</span>
+                        <span class="produto-preco">R$ ${produto.preco?.toFixed(2)}</span>
+                    </div>
+                    <button class="btn-adicionar" onclick="event.stopPropagation(); app.pdv.adicionarAoCarrinho(${produto.id})">
+                        <span class="btn-icon">🛒</span>
+                        <span class="btn-text">Adicionar</span>
+                    </button>
                 </div>
             `;
             
@@ -109,16 +136,22 @@ export class PDVModule {
             <div class="pagination-controls">
                 <button class="btn-pagination" 
                         onclick="app.pdv.paginaAnterior()" 
-                        ${currentPage === 1 ? 'disabled' : ''}>
-                    ← Anterior
+                        ${currentPage === 1 ? 'disabled' : ''}
+                        aria-label="Página anterior">
+                    <span class="pagination-arrow">←</span>
+                    <span class="pagination-text">Anterior</span>
                 </button>
-                <span class="pagination-info">
-                    Página ${currentPage} de ${totalPages}
-                </span>
+                <div class="pagination-info">
+                    <span class="pagination-current">${currentPage}</span>
+                    <span class="pagination-separator">/</span>
+                    <span class="pagination-total">${totalPages}</span>
+                </div>
                 <button class="btn-pagination" 
                         onclick="app.pdv.proximaPagina()" 
-                        ${currentPage === totalPages ? 'disabled' : ''}>
-                    Próxima →
+                        ${currentPage === totalPages ? 'disabled' : ''}
+                        aria-label="Próxima página">
+                    <span class="pagination-text">Próxima</span>
+                    <span class="pagination-arrow">→</span>
                 </button>
             </div>
         `;
@@ -129,6 +162,7 @@ export class PDVModule {
         if (this.app.pagination.currentPage < totalPages) {
             this.app.pagination.currentPage++;
             this.renderizarProdutos();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }
 
@@ -136,6 +170,7 @@ export class PDVModule {
         if (this.app.pagination.currentPage > 1) {
             this.app.pagination.currentPage--;
             this.renderizarProdutos();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }
 
