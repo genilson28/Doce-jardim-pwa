@@ -1,4 +1,4 @@
-// ==================== MÓDULO COMPRAS ====================
+// ==================== MÓDULO COMPRAS COM SELECT PESQUISÁVEL ====================
 
 import { supabase } from '../../config/supabase.js';
 import { mostrarToast, setButtonLoading } from '../../utils/ui.js';
@@ -10,6 +10,7 @@ export class ComprasModule {
         this.app = app;
         this.compras = [];
         this.carrinho = [];
+        this.fornecedorSelecionado = null;
     }
 
     async carregar() {
@@ -54,7 +55,7 @@ export class ComprasModule {
         
         this.app.pagination.setup(this.compras, 10);
         this.renderizar();
-        this.popularSelectFornecedores();
+        this.inicializarSelectFornecedor();
         this.popularSelectProdutos();
     }
 
@@ -90,17 +91,112 @@ export class ComprasModule {
         this.app.pagination.renderPaginationControls('paginacaoCompras', this.renderizar.bind(this));
     }
 
-    popularSelectFornecedores() {
-        const select = document.getElementById('compraFornecedor');
-        if (!select) return;
+    inicializarSelectFornecedor() {
+        const selectOriginal = document.getElementById('compraFornecedor');
+        if (!selectOriginal) return;
 
-        select.innerHTML = '<option value="">Selecione um fornecedor</option>';
+        // Criar container para o novo componente
+        const container = document.createElement('div');
+        container.id = 'compraFornecedorContainer';
         
-        this.app.fornecedores.getFornecedoresAtivos().forEach(fornecedor => {
-            const option = document.createElement('option');
-            option.value = fornecedor.id;
-            option.textContent = fornecedor.nome;
-            select.appendChild(option);
+        // Substituir o select antigo
+        selectOriginal.parentNode.replaceChild(container, selectOriginal);
+
+        const fornecedoresAtivos = this.app.fornecedores.getFornecedoresAtivos();
+
+        container.innerHTML = `
+            <div class="select-pesquisavel">
+                <div class="select-pesquisavel-header" id="selectFornecedorHeader">
+                    <span id="fornecedorSelecionadoText">Selecione um fornecedor</span>
+                    <span class="select-arrow">▼</span>
+                </div>
+                <div class="select-pesquisavel-dropdown" id="selectFornecedorDropdown" style="display: none;">
+                    <div class="select-pesquisavel-search">
+                        <input 
+                            type="text" 
+                            id="searchFornecedor" 
+                            placeholder="🔍 Pesquisar fornecedor..."
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="select-pesquisavel-list" id="listaFornecedores">
+                        ${fornecedoresAtivos.map(f => `
+                            <div class="select-pesquisavel-item" data-id="${f.id}" data-nome="${f.nome}">
+                                <strong>${f.nome}</strong>
+                                ${f.contato ? `<small>${f.contato}</small>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.configurarEventosSelectFornecedor();
+    }
+
+    configurarEventosSelectFornecedor() {
+        const header = document.getElementById('selectFornecedorHeader');
+        const dropdown = document.getElementById('selectFornecedorDropdown');
+        const searchInput = document.getElementById('searchFornecedor');
+        const lista = document.getElementById('listaFornecedores');
+
+        // Toggle dropdown
+        header?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = dropdown.style.display === 'block';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) {
+                searchInput?.focus();
+            }
+        });
+
+        // Pesquisa
+        searchInput?.addEventListener('input', (e) => {
+            const termo = e.target.value.toLowerCase().trim();
+            const itens = lista.querySelectorAll('.select-pesquisavel-item');
+            
+            itens.forEach(item => {
+                const nome = item.dataset.nome.toLowerCase();
+                item.style.display = nome.includes(termo) ? 'block' : 'none';
+            });
+        });
+
+        // Prevenir fechar ao clicar no input
+        searchInput?.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // Seleção de fornecedor
+        lista?.addEventListener('click', (e) => {
+            const item = e.target.closest('.select-pesquisavel-item');
+            if (!item) return;
+
+            const fornecedorId = parseInt(item.dataset.id);
+            const fornecedorNome = item.dataset.nome;
+
+            this.fornecedorSelecionado = fornecedorId;
+            document.getElementById('fornecedorSelecionadoText').textContent = fornecedorNome;
+            
+            // Marcar como selecionado
+            lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+                i.classList.remove('selected');
+            });
+            item.classList.add('selected');
+
+            dropdown.style.display = 'none';
+            searchInput.value = '';
+            
+            // Resetar visualização
+            lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+                i.style.display = 'block';
+            });
+        });
+
+        // Fechar ao clicar fora
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.select-pesquisavel')) {
+                dropdown.style.display = 'none';
+            }
         });
     }
 
@@ -208,10 +304,7 @@ export class ComprasModule {
     }
 
     async finalizar() {
-        const fornecedorId = document.getElementById('compraFornecedor').value;
-        const observacoes = document.getElementById('compraObservacoes').value.trim();
-
-        if (!fornecedorId) {
+        if (!this.fornecedorSelecionado) {
             mostrarToast('Selecione um fornecedor!', 'warning');
             return;
         }
@@ -224,12 +317,13 @@ export class ComprasModule {
         setButtonLoading('finalizarCompra', true);
 
         try {
-            const fornecedor = this.app.fornecedores.fornecedores.find(f => f.id === parseInt(fornecedorId));
+            const fornecedor = this.app.fornecedores.fornecedores.find(f => f.id === this.fornecedorSelecionado);
             const totalCompra = this.carrinho.reduce((sum, item) => sum + item.total_custo, 0);
             const usuarioLogado = this.app.auth.getUsuarioLogado();
+            const observacoes = document.getElementById('compraObservacoes')?.value.trim() || '';
 
             const { data: compraData, error: compraError } = await supabase.from('compras').insert([{
-                fornecedor_id: parseInt(fornecedorId),
+                fornecedor_id: this.fornecedorSelecionado,
                 fornecedor_nome: fornecedor.nome,
                 valor_total: totalCompra,
                 observacoes: observacoes,
@@ -269,9 +363,17 @@ export class ComprasModule {
             }
 
             this.carrinho = [];
+            this.fornecedorSelecionado = null;
             this.atualizarCarrinho();
-            document.getElementById('compraFornecedor').value = '';
-            document.getElementById('compraObservacoes').value = '';
+            document.getElementById('fornecedorSelecionadoText').textContent = 'Selecione um fornecedor';
+            if (document.getElementById('compraObservacoes')) {
+                document.getElementById('compraObservacoes').value = '';
+            }
+
+            // Resetar seleção visual
+            document.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+                i.classList.remove('selected');
+            });
 
             await this.app.produtos.carregar();
             await this.listar();
@@ -338,4 +440,5 @@ export class ComprasModule {
             mostrarToast(handleSupabaseError(error), 'error');
         }
     }
+
 }
