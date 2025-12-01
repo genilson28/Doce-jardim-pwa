@@ -144,17 +144,17 @@ export class ComprasModule {
         if (!header || !dropdown || !searchInput || !lista) return;
 
         // Toggle dropdown
-        header.addEventListener('click', (e) => {
+        header.onclick = (e) => {
             e.stopPropagation();
             const isVisible = dropdown.style.display === 'block';
             dropdown.style.display = isVisible ? 'none' : 'block';
             if (!isVisible) {
                 setTimeout(() => searchInput.focus(), 100);
             }
-        });
+        };
 
         // Pesquisa
-        searchInput.addEventListener('input', (e) => {
+        searchInput.oninput = (e) => {
             const termo = e.target.value.toLowerCase().trim();
             const itens = lista.querySelectorAll('.select-pesquisavel-item');
             
@@ -162,18 +162,23 @@ export class ComprasModule {
                 const nome = item.dataset.nome.toLowerCase();
                 item.style.display = nome.includes(termo) ? 'block' : 'none';
             });
-        });
+        };
 
         // Prevenir fechar ao clicar no input
-        searchInput.addEventListener('click', (e) => {
+        searchInput.onclick = (e) => {
             e.stopPropagation();
-        });
+        };
 
-        // Seleção de fornecedor
-        lista.addEventListener('click', (e) => {
+        // Seleção de fornecedor - DELEGAÇÃO DE EVENTOS
+        lista.onclick = (e) => {
             e.stopPropagation();
             
-            const item = e.target.closest('.select-pesquisavel-item');
+            // Buscar o elemento clicado ou seu pai
+            let item = e.target;
+            if (!item.classList.contains('select-pesquisavel-item')) {
+                item = item.closest('.select-pesquisavel-item');
+            }
+            
             if (!item) return;
 
             const fornecedorId = parseInt(item.dataset.id);
@@ -195,16 +200,14 @@ export class ComprasModule {
             lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
                 i.style.display = 'block';
             });
-        });
+        };
 
         // Fechar ao clicar fora
-        const fecharDropdown = (e) => {
-            if (!e.target.closest('.select-pesquisavel')) {
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#selectFornecedorDropdown') && !e.target.closest('#selectFornecedorHeader')) {
                 dropdown.style.display = 'none';
             }
-        };
-        
-        document.addEventListener('click', fecharDropdown);
+        }, { once: false });
     }
 
     popularSelectProdutos() {
@@ -259,17 +262,17 @@ export class ComprasModule {
         if (!header || !dropdown || !searchInput || !lista) return;
 
         // Toggle dropdown
-        header.addEventListener('click', (e) => {
+        header.onclick = (e) => {
             e.stopPropagation();
             const isVisible = dropdown.style.display === 'block';
             dropdown.style.display = isVisible ? 'none' : 'block';
             if (!isVisible) {
                 setTimeout(() => searchInput.focus(), 100);
             }
-        });
+        };
 
         // Pesquisa
-        searchInput.addEventListener('input', (e) => {
+        searchInput.oninput = (e) => {
             const termo = e.target.value.toLowerCase().trim();
             const itens = lista.querySelectorAll('.select-pesquisavel-item');
             
@@ -277,18 +280,23 @@ export class ComprasModule {
                 const nome = item.dataset.nome.toLowerCase();
                 item.style.display = nome.includes(termo) ? 'block' : 'none';
             });
-        });
+        };
 
         // Prevenir fechar ao clicar no input
-        searchInput.addEventListener('click', (e) => {
+        searchInput.onclick = (e) => {
             e.stopPropagation();
-        });
+        };
 
-        // Seleção de produto
-        lista.addEventListener('click', (e) => {
+        // Seleção de produto - DELEGAÇÃO DE EVENTOS
+        lista.onclick = (e) => {
             e.stopPropagation();
             
-            const item = e.target.closest('.select-pesquisavel-item');
+            // Buscar o elemento clicado ou seu pai
+            let item = e.target;
+            if (!item.classList.contains('select-pesquisavel-item')) {
+                item = item.closest('.select-pesquisavel-item');
+            }
+            
             if (!item) return;
 
             const produtoId = item.dataset.id;
@@ -311,16 +319,14 @@ export class ComprasModule {
             lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
                 i.style.display = 'block';
             });
-        });
+        };
 
         // Fechar ao clicar fora
-        const fecharDropdown = (e) => {
-            if (!e.target.closest('.select-pesquisavel')) {
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#selectProdutoDropdown') && !e.target.closest('#selectProdutoHeader')) {
                 dropdown.style.display = 'none';
             }
-        };
-        
-        document.addEventListener('click', fecharDropdown);
+        }, { once: false });
     }
 
     adicionarItem() {
