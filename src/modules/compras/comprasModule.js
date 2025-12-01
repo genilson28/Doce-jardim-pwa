@@ -11,6 +11,7 @@ export class ComprasModule {
         this.compras = [];
         this.carrinho = [];
         this.fornecedorSelecionado = null;
+        this.produtoSelecionado = null;
     }
 
     async carregar() {
@@ -140,18 +141,20 @@ export class ComprasModule {
         const searchInput = document.getElementById('searchFornecedor');
         const lista = document.getElementById('listaFornecedores');
 
+        if (!header || !dropdown || !searchInput || !lista) return;
+
         // Toggle dropdown
-        header?.addEventListener('click', (e) => {
+        header.addEventListener('click', (e) => {
             e.stopPropagation();
             const isVisible = dropdown.style.display === 'block';
             dropdown.style.display = isVisible ? 'none' : 'block';
             if (!isVisible) {
-                searchInput?.focus();
+                setTimeout(() => searchInput.focus(), 100);
             }
         });
 
         // Pesquisa
-        searchInput?.addEventListener('input', (e) => {
+        searchInput.addEventListener('input', (e) => {
             const termo = e.target.value.toLowerCase().trim();
             const itens = lista.querySelectorAll('.select-pesquisavel-item');
             
@@ -162,12 +165,14 @@ export class ComprasModule {
         });
 
         // Prevenir fechar ao clicar no input
-        searchInput?.addEventListener('click', (e) => {
+        searchInput.addEventListener('click', (e) => {
             e.stopPropagation();
         });
 
         // Seleção de fornecedor
-        lista?.addEventListener('click', (e) => {
+        lista.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
             const item = e.target.closest('.select-pesquisavel-item');
             if (!item) return;
 
@@ -193,34 +198,143 @@ export class ComprasModule {
         });
 
         // Fechar ao clicar fora
-        document.addEventListener('click', (e) => {
+        const fecharDropdown = (e) => {
             if (!e.target.closest('.select-pesquisavel')) {
                 dropdown.style.display = 'none';
             }
-        });
+        };
+        
+        document.addEventListener('click', fecharDropdown);
     }
 
     popularSelectProdutos() {
-        const select = document.getElementById('compraProduto');
-        if (!select) return;
+        const selectOriginal = document.getElementById('compraProduto');
+        if (!selectOriginal) return;
 
-        select.innerHTML = '<option value="">Selecione um produto</option>';
+        // Criar container para o novo componente
+        const container = document.createElement('div');
+        container.id = 'compraProdutoContainer';
         
-        this.app.produtos.getProdutos().forEach(produto => {
-            const option = document.createElement('option');
-            option.value = produto.id;
-            option.textContent = `${produto.nome} (Estoque: ${produto.estoque})`;
-            select.appendChild(option);
+        // Substituir o select antigo
+        selectOriginal.parentNode.replaceChild(container, selectOriginal);
+
+        const produtos = this.app.produtos.getProdutos();
+
+        container.innerHTML = `
+            <div class="select-pesquisavel">
+                <div class="select-pesquisavel-header" id="selectProdutoHeader">
+                    <span id="produtoSelecionadoText">Selecione um produto</span>
+                    <span class="select-arrow">▼</span>
+                </div>
+                <div class="select-pesquisavel-dropdown" id="selectProdutoDropdown" style="display: none;">
+                    <div class="select-pesquisavel-search">
+                        <input 
+                            type="text" 
+                            id="searchProduto" 
+                            placeholder="🔍 Pesquisar produto..."
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="select-pesquisavel-list" id="listaProdutosSelect">
+                        ${produtos.map(p => `
+                            <div class="select-pesquisavel-item" data-id="${p.id}" data-nome="${p.nome}">
+                                <strong>${p.nome}</strong>
+                                <small>Estoque: ${p.estoque} | R$ ${p.preco.toFixed(2)}</small>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.configurarEventosSelectProduto();
+    }
+
+    configurarEventosSelectProduto() {
+        const header = document.getElementById('selectProdutoHeader');
+        const dropdown = document.getElementById('selectProdutoDropdown');
+        const searchInput = document.getElementById('searchProduto');
+        const lista = document.getElementById('listaProdutosSelect');
+
+        if (!header || !dropdown || !searchInput || !lista) return;
+
+        // Toggle dropdown
+        header.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = dropdown.style.display === 'block';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) {
+                setTimeout(() => searchInput.focus(), 100);
+            }
         });
+
+        // Pesquisa
+        searchInput.addEventListener('input', (e) => {
+            const termo = e.target.value.toLowerCase().trim();
+            const itens = lista.querySelectorAll('.select-pesquisavel-item');
+            
+            itens.forEach(item => {
+                const nome = item.dataset.nome.toLowerCase();
+                item.style.display = nome.includes(termo) ? 'block' : 'none';
+            });
+        });
+
+        // Prevenir fechar ao clicar no input
+        searchInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // Seleção de produto
+        lista.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            const item = e.target.closest('.select-pesquisavel-item');
+            if (!item) return;
+
+            const produtoId = item.dataset.id;
+            const produtoNome = item.dataset.nome;
+
+            // Armazenar produto selecionado
+            this.produtoSelecionado = produtoId;
+            document.getElementById('produtoSelecionadoText').textContent = produtoNome;
+            
+            // Marcar como selecionado
+            lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+                i.classList.remove('selected');
+            });
+            item.classList.add('selected');
+
+            dropdown.style.display = 'none';
+            searchInput.value = '';
+            
+            // Resetar visualização
+            lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+                i.style.display = 'block';
+            });
+        });
+
+        // Fechar ao clicar fora
+        const fecharDropdown = (e) => {
+            if (!e.target.closest('.select-pesquisavel')) {
+                dropdown.style.display = 'none';
+            }
+        };
+        
+        document.addEventListener('click', fecharDropdown);
     }
 
     adicionarItem() {
-        const produtoId = document.getElementById('compraProduto').value;
+        const produtoId = this.produtoSelecionado;
         const quantidade = parseInt(document.getElementById('compraQuantidade').value);
         const valorCusto = parseFloat(document.getElementById('compraValorCusto').value);
         const valorVenda = parseFloat(document.getElementById('compraValorVenda').value);
 
-        if (!produtoId || !quantidade || !valorCusto || !valorVenda) {
+        if (!produtoId) {
+            mostrarToast('Selecione um produto!', 'warning');
+            return;
+        }
+
+        if (!quantidade || !valorCusto || !valorVenda) {
             mostrarToast('Preencha todos os campos do item!', 'warning');
             return;
         }
@@ -249,7 +363,13 @@ export class ComprasModule {
             });
         }
 
-        document.getElementById('compraProduto').value = '';
+        // Resetar seleção
+        this.produtoSelecionado = null;
+        document.getElementById('produtoSelecionadoText').textContent = 'Selecione um produto';
+        document.querySelectorAll('#listaProdutosSelect .select-pesquisavel-item').forEach(i => {
+            i.classList.remove('selected');
+        });
+        
         document.getElementById('compraQuantidade').value = '1';
         document.getElementById('compraValorCusto').value = '';
         document.getElementById('compraValorVenda').value = '';
