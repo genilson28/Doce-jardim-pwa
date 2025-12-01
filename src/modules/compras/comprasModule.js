@@ -1,4 +1,4 @@
-// ==================== MÓDULO COMPRAS COM SELECT PESQUISÁVEL ====================
+// ==================== MÓDULO COMPRAS - VERSÃO CORRIGIDA ====================
 
 import { supabase } from '../../config/supabase.js';
 import { mostrarToast, setButtonLoading } from '../../utils/ui.js';
@@ -96,18 +96,15 @@ export class ComprasModule {
         const selectOriginal = document.getElementById('compraFornecedor');
         if (!selectOriginal) return;
 
-        // Criar container para o novo componente
         const container = document.createElement('div');
         container.id = 'compraFornecedorContainer';
-        
-        // Substituir o select antigo
         selectOriginal.parentNode.replaceChild(container, selectOriginal);
 
         const fornecedoresAtivos = this.app.fornecedores.getFornecedoresAtivos();
 
         container.innerHTML = `
             <div class="select-pesquisavel">
-                <div class="select-pesquisavel-header" id="selectFornecedorHeader">
+                <div class="select-pesquisavel-header" onclick="app.compras.toggleFornecedor()">
                     <span id="fornecedorSelecionadoText">Selecione um fornecedor</span>
                     <span class="select-arrow">▼</span>
                 </div>
@@ -118,11 +115,16 @@ export class ComprasModule {
                             id="searchFornecedor" 
                             placeholder="🔍 Pesquisar fornecedor..."
                             autocomplete="off"
+                            oninput="app.compras.pesquisarFornecedor(this.value)"
+                            onclick="event.stopPropagation()"
                         >
                     </div>
                     <div class="select-pesquisavel-list" id="listaFornecedores">
                         ${fornecedoresAtivos.map(f => `
-                            <div class="select-pesquisavel-item" data-id="${f.id}" data-nome="${f.nome}">
+                            <div class="select-pesquisavel-item" 
+                                 data-id="${f.id}" 
+                                 data-nome="${f.nome}"
+                                 onclick="app.compras.selecionarFornecedor(${f.id}, '${f.nome.replace(/'/g, "\\'")}')">
                                 <strong>${f.nome}</strong>
                                 ${f.contato ? `<small>${f.contato}</small>` : ''}
                             </div>
@@ -131,101 +133,67 @@ export class ComprasModule {
                 </div>
             </div>
         `;
-
-        this.configurarEventosSelectFornecedor();
     }
 
-    configurarEventosSelectFornecedor() {
-        const header = document.getElementById('selectFornecedorHeader');
+    toggleFornecedor() {
         const dropdown = document.getElementById('selectFornecedorDropdown');
         const searchInput = document.getElementById('searchFornecedor');
-        const lista = document.getElementById('listaFornecedores');
-
-        if (!header || !dropdown || !searchInput || !lista) return;
-
-        // Toggle dropdown
-        header.onclick = (e) => {
-            e.stopPropagation();
-            const isVisible = dropdown.style.display === 'block';
-            dropdown.style.display = isVisible ? 'none' : 'block';
-            if (!isVisible) {
-                setTimeout(() => searchInput.focus(), 100);
-            }
-        };
-
-        // Pesquisa
-        searchInput.oninput = (e) => {
-            const termo = e.target.value.toLowerCase().trim();
-            const itens = lista.querySelectorAll('.select-pesquisavel-item');
-            
-            itens.forEach(item => {
-                const nome = item.dataset.nome.toLowerCase();
-                item.style.display = nome.includes(termo) ? 'block' : 'none';
-            });
-        };
-
-        // Prevenir fechar ao clicar no input
-        searchInput.onclick = (e) => {
-            e.stopPropagation();
-        };
-
-        // Seleção de fornecedor - DELEGAÇÃO DE EVENTOS
-        lista.onclick = (e) => {
-            e.stopPropagation();
-            
-            // Buscar o elemento clicado ou seu pai
-            let item = e.target;
-            if (!item.classList.contains('select-pesquisavel-item')) {
-                item = item.closest('.select-pesquisavel-item');
-            }
-            
-            if (!item) return;
-
-            const fornecedorId = parseInt(item.dataset.id);
-            const fornecedorNome = item.dataset.nome;
-
-            this.fornecedorSelecionado = fornecedorId;
-            document.getElementById('fornecedorSelecionadoText').textContent = fornecedorNome;
-            
-            // Marcar como selecionado
-            lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
-                i.classList.remove('selected');
-            });
-            item.classList.add('selected');
-
+        
+        if (dropdown.style.display === 'block') {
             dropdown.style.display = 'none';
-            searchInput.value = '';
-            
-            // Resetar visualização
-            lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
-                i.style.display = 'block';
-            });
-        };
+        } else {
+            dropdown.style.display = 'block';
+            setTimeout(() => searchInput.focus(), 100);
+        }
+    }
 
-        // Fechar ao clicar fora
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#selectFornecedorDropdown') && !e.target.closest('#selectFornecedorHeader')) {
-                dropdown.style.display = 'none';
-            }
-        }, { once: false });
+    pesquisarFornecedor(termo) {
+        const lista = document.getElementById('listaFornecedores');
+        const itens = lista.querySelectorAll('.select-pesquisavel-item');
+        
+        termo = termo.toLowerCase().trim();
+        
+        itens.forEach(item => {
+            const nome = item.dataset.nome.toLowerCase();
+            item.style.display = nome.includes(termo) ? 'block' : 'none';
+        });
+    }
+
+    selecionarFornecedor(id, nome) {
+        this.fornecedorSelecionado = id;
+        document.getElementById('fornecedorSelecionadoText').textContent = nome;
+        
+        const lista = document.getElementById('listaFornecedores');
+        lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+            i.classList.remove('selected');
+        });
+        
+        const itemSelecionado = lista.querySelector(`[data-id="${id}"]`);
+        if (itemSelecionado) {
+            itemSelecionado.classList.add('selected');
+        }
+        
+        document.getElementById('selectFornecedorDropdown').style.display = 'none';
+        document.getElementById('searchFornecedor').value = '';
+        
+        lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+            i.style.display = 'block';
+        });
     }
 
     popularSelectProdutos() {
         const selectOriginal = document.getElementById('compraProduto');
         if (!selectOriginal) return;
 
-        // Criar container para o novo componente
         const container = document.createElement('div');
         container.id = 'compraProdutoContainer';
-        
-        // Substituir o select antigo
         selectOriginal.parentNode.replaceChild(container, selectOriginal);
 
         const produtos = this.app.produtos.getProdutos();
 
         container.innerHTML = `
             <div class="select-pesquisavel">
-                <div class="select-pesquisavel-header" id="selectProdutoHeader">
+                <div class="select-pesquisavel-header" onclick="app.compras.toggleProduto()">
                     <span id="produtoSelecionadoText">Selecione um produto</span>
                     <span class="select-arrow">▼</span>
                 </div>
@@ -236,11 +204,16 @@ export class ComprasModule {
                             id="searchProduto" 
                             placeholder="🔍 Pesquisar produto..."
                             autocomplete="off"
+                            oninput="app.compras.pesquisarProduto(this.value)"
+                            onclick="event.stopPropagation()"
                         >
                     </div>
                     <div class="select-pesquisavel-list" id="listaProdutosSelect">
                         ${produtos.map(p => `
-                            <div class="select-pesquisavel-item" data-id="${p.id}" data-nome="${p.nome}">
+                            <div class="select-pesquisavel-item" 
+                                 data-id="${p.id}" 
+                                 data-nome="${p.nome}"
+                                 onclick="app.compras.selecionarProduto(${p.id}, '${p.nome.replace(/'/g, "\\'")}')">
                                 <strong>${p.nome}</strong>
                                 <small>Estoque: ${p.estoque} | R$ ${p.preco.toFixed(2)}</small>
                             </div>
@@ -249,84 +222,52 @@ export class ComprasModule {
                 </div>
             </div>
         `;
-
-        this.configurarEventosSelectProduto();
     }
 
-    configurarEventosSelectProduto() {
-        const header = document.getElementById('selectProdutoHeader');
+    toggleProduto() {
         const dropdown = document.getElementById('selectProdutoDropdown');
         const searchInput = document.getElementById('searchProduto');
-        const lista = document.getElementById('listaProdutosSelect');
-
-        if (!header || !dropdown || !searchInput || !lista) return;
-
-        // Toggle dropdown
-        header.onclick = (e) => {
-            e.stopPropagation();
-            const isVisible = dropdown.style.display === 'block';
-            dropdown.style.display = isVisible ? 'none' : 'block';
-            if (!isVisible) {
-                setTimeout(() => searchInput.focus(), 100);
-            }
-        };
-
-        // Pesquisa
-        searchInput.oninput = (e) => {
-            const termo = e.target.value.toLowerCase().trim();
-            const itens = lista.querySelectorAll('.select-pesquisavel-item');
-            
-            itens.forEach(item => {
-                const nome = item.dataset.nome.toLowerCase();
-                item.style.display = nome.includes(termo) ? 'block' : 'none';
-            });
-        };
-
-        // Prevenir fechar ao clicar no input
-        searchInput.onclick = (e) => {
-            e.stopPropagation();
-        };
-
-        // Seleção de produto - DELEGAÇÃO DE EVENTOS
-        lista.onclick = (e) => {
-            e.stopPropagation();
-            
-            // Buscar o elemento clicado ou seu pai
-            let item = e.target;
-            if (!item.classList.contains('select-pesquisavel-item')) {
-                item = item.closest('.select-pesquisavel-item');
-            }
-            
-            if (!item) return;
-
-            const produtoId = item.dataset.id;
-            const produtoNome = item.dataset.nome;
-
-            // Armazenar produto selecionado
-            this.produtoSelecionado = produtoId;
-            document.getElementById('produtoSelecionadoText').textContent = produtoNome;
-            
-            // Marcar como selecionado
-            lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
-                i.classList.remove('selected');
-            });
-            item.classList.add('selected');
-
+        
+        if (dropdown.style.display === 'block') {
             dropdown.style.display = 'none';
-            searchInput.value = '';
-            
-            // Resetar visualização
-            lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
-                i.style.display = 'block';
-            });
-        };
+        } else {
+            dropdown.style.display = 'block';
+            setTimeout(() => searchInput.focus(), 100);
+        }
+    }
 
-        // Fechar ao clicar fora
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#selectProdutoDropdown') && !e.target.closest('#selectProdutoHeader')) {
-                dropdown.style.display = 'none';
-            }
-        }, { once: false });
+    pesquisarProduto(termo) {
+        const lista = document.getElementById('listaProdutosSelect');
+        const itens = lista.querySelectorAll('.select-pesquisavel-item');
+        
+        termo = termo.toLowerCase().trim();
+        
+        itens.forEach(item => {
+            const nome = item.dataset.nome.toLowerCase();
+            item.style.display = nome.includes(termo) ? 'block' : 'none';
+        });
+    }
+
+    selecionarProduto(id, nome) {
+        this.produtoSelecionado = id;
+        document.getElementById('produtoSelecionadoText').textContent = nome;
+        
+        const lista = document.getElementById('listaProdutosSelect');
+        lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+            i.classList.remove('selected');
+        });
+        
+        const itemSelecionado = lista.querySelector(`[data-id="${id}"]`);
+        if (itemSelecionado) {
+            itemSelecionado.classList.add('selected');
+        }
+        
+        document.getElementById('selectProdutoDropdown').style.display = 'none';
+        document.getElementById('searchProduto').value = '';
+        
+        lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+            i.style.display = 'block';
+        });
     }
 
     adicionarItem() {
@@ -369,12 +310,15 @@ export class ComprasModule {
             });
         }
 
-        // Resetar seleção
         this.produtoSelecionado = null;
         document.getElementById('produtoSelecionadoText').textContent = 'Selecione um produto';
-        document.querySelectorAll('#listaProdutosSelect .select-pesquisavel-item').forEach(i => {
-            i.classList.remove('selected');
-        });
+        
+        const lista = document.getElementById('listaProdutosSelect');
+        if (lista) {
+            lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
+                i.classList.remove('selected');
+            });
+        }
         
         document.getElementById('compraQuantidade').value = '1';
         document.getElementById('compraValorCusto').value = '';
@@ -496,7 +440,6 @@ export class ComprasModule {
                 document.getElementById('compraObservacoes').value = '';
             }
 
-            // Resetar seleção visual
             document.querySelectorAll('.select-pesquisavel-item').forEach(i => {
                 i.classList.remove('selected');
             });
