@@ -53,16 +53,27 @@ export class ComprasModule {
     async listar() {
         await this.carregar();
         await this.app.fornecedores.carregar();
+        await this.app.produtos.carregar();
         
         this.app.pagination.setup(this.compras, 10);
         this.renderizar();
         
-        // Só inicializar se não existirem
-        if (!document.getElementById('compraFornecedorContainer')) {
+        // Inicializar selects na primeira vez
+        const fornecedorContainer = document.getElementById('compraFornecedorContainer');
+        const produtoContainer = document.getElementById('compraProdutoContainer');
+        
+        if (!fornecedorContainer) {
+            console.log('📝 Criando select de fornecedores...');
             this.inicializarSelectFornecedor();
         }
-        if (!document.getElementById('compraProdutoContainer')) {
+        
+        if (!produtoContainer) {
+            console.log('📝 Criando select de produtos...');
             this.popularSelectProdutos();
+        } else {
+            // Se já existe, só atualizar a lista
+            console.log('🔄 Atualizando lista de produtos...');
+            this.atualizarListaProdutos();
         }
     }
 
@@ -188,10 +199,17 @@ export class ComprasModule {
     }
 
     atualizarListaProdutos() {
+        console.log('🔍 Atualizando lista de produtos...');
         const lista = document.getElementById('listaProdutosSelect');
-        if (!lista) return;
+        
+        if (!lista) {
+            console.log('❌ Lista de produtos não encontrada! Recriando select...');
+            this.popularSelectProdutos();
+            return;
+        }
 
         const produtos = this.app.produtos.getProdutos();
+        console.log('📦 Produtos encontrados:', produtos.length);
         
         lista.innerHTML = produtos.map(p => `
             <div class="select-pesquisavel-item" 
@@ -202,6 +220,8 @@ export class ComprasModule {
                 <small>Estoque: ${p.estoque} | R$ ${p.preco.toFixed(2)}</small>
             </div>
         `).join('');
+        
+        console.log('✅ Lista de produtos atualizada!');
     }
 
     popularSelectProdutos() {
