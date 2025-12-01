@@ -646,82 +646,87 @@
         </main>
     </div>
 
-    <!-- TELA COMPRAS -->
-    <div id="comprasScreen" class="screen">
-        <header class="app-header">
-            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
-            <h1>📦 Compras / Investimentos</h1>
-        </header>
+   <!-- TELA COMPRAS -->
+<div id="comprasScreen" class="screen">
+    <header class="app-header">
+        <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+        <h1>📦 Compras / Investimentos</h1>
+    </header>
 
-        <main>
-            <div class="content-container">
-                <div class="form-card">
-                    <h3>Registrar Nova Compra</h3>
+    <main>
+        <div class="content-container">
+            <div class="form-card">
+                <h3>Registrar Nova Compra</h3>
+                
+                <div class="form-group">
+                    <label>Fornecedor *</label>
+                    <select id="compraFornecedor">
+                        <option value="">Selecione um fornecedor</option>
+                    </select>
+                </div>
+
+                <hr style="margin: 20px 0;">
+                
+                <h4>📋 Selecionar Produtos</h4>
+                <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">
+                    Selecione um ou mais produtos e preencha as informações
+                </p>
+                
+                <div id="listaProdutosMultiplos" style="margin-bottom: 20px;">
+                    <div class="loading">Carregando produtos...</div>
+                </div>
+
+                <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="margin-top: 0;">🛒 Itens da Compra</h4>
+                    <div id="itensCompraLista">
+                        <div class="empty-state">Nenhum item adicionado</div>
+                    </div>
                     
-                    <div class="form-group">
-                        <label>Fornecedor *</label>
-                        <select id="compraFornecedor">
-                            <option value="">Selecione um fornecedor</option>
-                        </select>
-                    </div>
-
-                    <hr style="margin: 20px 0;">
-                    <h4>Adicionar Produtos</h4>
-
-                    <div class="form-row">
-                        <div class="form-group" style="flex: 2;">
-                            <label>Produto *</label>
-                            <select id="compraProduto">
-                                <option value="">Selecione um produto</option>
-                            </select>
+                    <div style="border-top: 2px solid #ddd; margin-top: 15px; padding-top: 15px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span>Subtotal Produtos:</span>
+                            <strong>R$ <span id="subtotalCompra">0.00</span></strong>
                         </div>
-                        <div class="form-group" style="flex: 1;">
-                            <label>Quantidade *</label>
-                            <input type="number" id="compraQuantidade" value="1" min="1">
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <label for="compraFrete" style="margin: 0;">Frete:</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span>R$</span>
+                                <input type="number" id="compraFrete" value="0" min="0" step="0.01" 
+                                       oninput="app.compras.atualizarFrete()"
+                                       style="width: 100px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+                                <strong>R$ <span id="freteCompra">0.00</span></strong>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Valor de Custo (un.) *</label>
-                            <input type="number" id="compraValorCusto" placeholder="0.00" step="0.01" min="0">
-                        </div>
-                        <div class="form-group">
-                            <label>Valor de Venda (un.) *</label>
-                            <input type="number" id="compraValorVenda" placeholder="0.00" step="0.01" min="0">
+                        
+                        <div style="display: flex; justify-content: space-between; font-size: 1.3em; color: #C8A8D8; border-top: 2px solid #C8A8D8; padding-top: 10px; margin-top: 10px;">
+                            <strong>TOTAL:</strong>
+                            <strong>R$ <span id="totalCompra">0.00</span></strong>
                         </div>
                     </div>
-
-                    <button onclick="app.compras.adicionarItem()" class="btn-secondary" style="width: 100%; margin-bottom: 20px;">
-                        ➕ Adicionar Item
-                    </button>
-
-                    <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                        <h4 style="margin-top: 0;">Itens da Compra</h4>
-                        <div id="itensCompraLista"></div>
-                        <div style="text-align: right; margin-top: 10px; font-size: 1.2em;">
-                            <strong>Total: R$ <span id="totalCompra">0.00</span></strong>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Observações</label>
-                        <textarea id="compraObservacoes" rows="3" placeholder="Informações adicionais sobre a compra..."></textarea>
-                    </div>
-
-                    <button id="finalizarCompra" onclick="app.compras.finalizar()" class="btn-primary" style="width: 100%;">
-                        💾 Finalizar Compra
-                    </button>
                 </div>
 
-                <div class="lista-produtos">
-                    <h3>Histórico de Compras</h3>
-                    <div id="listaCompras"></div>
-                    <div id="paginacaoCompras" class="paginacao"></div>
+                <div class="form-group">
+                    <label>Observações</label>
+                    <textarea id="compraObservacoes" rows="3" placeholder="Informações adicionais sobre a compra..."></textarea>
                 </div>
+
+                <button id="finalizarCompra" onclick="app.compras.finalizar()" class="btn-primary" style="width: 100%;">
+                    💾 Finalizar Compra
+                </button>
             </div>
-        </main>
-    </div>
+
+            <div class="lista-produtos">
+                <h3>Histórico de Compras</h3>
+                <div id="listaCompras">
+                    <div class="loading">Carregando compras...</div>
+                </div>
+                <div id="paginacaoCompras" class="paginacao"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
 
     <!-- TELA RELATÓRIO FINANCEIRO -->
     <div id="relatorioFinanceiroScreen" class="screen">
@@ -978,4 +983,5 @@
     <!-- Aplicação Principal (MODULAR) -->
     <script type="module" src="./src/app.js"></script>
 </body>
+
 </html>
