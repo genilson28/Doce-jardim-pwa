@@ -1369,3 +1369,110 @@ body {
         max-height: 200px;
     }
 }
+
+/* ==================== CORREÇÕES iOS - PDV ==================== */
+
+/* Prevenir zoom automático em inputs no iOS */
+input, select, textarea, button {
+    font-size: 16px !important;
+}
+
+/* Fix para PDV Container no mobile */
+@media (max-width: 768px) {
+    .pdv-container {
+        display: flex !important;
+        flex-direction: column !important;
+        grid-template-columns: 1fr !important;
+    }
+    
+    .pdv-produtos, .pdv-carrinho {
+        width: 100% !important;
+    }
+    
+    /* Grid de produtos - 2 colunas */
+    #listaProdutosPDV {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 1rem;
+        padding: 1rem;
+    }
+    
+    /* Cards menores */
+    .produto-card-header {
+        padding: 1rem;
+    }
+    
+    .produto-icon {
+        font-size: 2rem;
+    }
+    
+    .produto-nome {
+        font-size: 0.9rem;
+        min-height: 2rem;
+    }
+    
+    .produto-preco {
+        font-size: 1.3rem;
+    }
+    
+    .btn-adicionar {
+        padding: 0.65rem;
+        font-size: 0.85rem;
+    }
+    
+    /* Categorias mobile */
+    .categoria-btn {
+        padding: 0.75rem 1rem;
+        min-width: 80px;
+    }
+    
+    .categoria-icon {
+        font-size: 1.5rem;
+    }
+    
+    /* Paginação mobile */
+    .pagination-controls {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .btn-pagination {
+        flex: 1;
+        min-width: 100px;
+    }
+    
+    .pagination-info {
+        width: 100%;
+        order: -1;
+        justify-content: center;
+    }
+}
+
+/* Mobile pequeno - 1 coluna */
+@media (max-width: 375px) {
+    #listaProdutosPDV {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Smooth scrolling para iOS */
+.carrinho-lista,
+.select-pesquisavel-list,
+#categoriasPDV,
+.tabela-estoque-container {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Fix para transforms no iOS */
+.produto-card-pdv,
+.categoria-btn,
+.btn-pagination {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+/* Remover highlight de toque no iOS */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
