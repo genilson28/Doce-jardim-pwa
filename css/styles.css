@@ -1514,3 +1514,184 @@ input, select, textarea, button {
         font-size: 13px;
     }
 }
+/* ==================== COPIE ISSO E COLE NO FINAL DO SEU styles.css ==================== */
+
+/* ESTILOS PARA COMPRAS - SELEÇÃO MÚLTIPLA */
+.produtos-multiplos-header {
+    margin-bottom: 15px;
+}
+
+.produtos-multiplos-lista {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 10px;
+    background: #fafafa;
+}
+
+.produtos-multiplos-lista::-webkit-scrollbar {
+    width: 8px;
+}
+
+.produtos-multiplos-lista::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.produtos-multiplos-lista::-webkit-scrollbar-thumb {
+    background: #C8A8D8;
+    border-radius: 10px;
+}
+
+.produto-multiplo-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+}
+
+.produto-multiplo-item:hover {
+    border-color: #C8A8D8;
+    box-shadow: 0 2px 8px rgba(200, 168, 216, 0.2);
+}
+
+.produto-multiplo-checkbox {
+    display: flex;
+    align-items: center;
+    padding-top: 2px;
+}
+
+.produto-multiplo-checkbox input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #C8A8D8;
+}
+
+.produto-multiplo-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.produto-multiplo-info label {
+    cursor: pointer;
+    display: block;
+}
+
+.produto-multiplo-info strong {
+    display: block;
+    color: #333;
+    font-size: 1em;
+    margin-bottom: 3px;
+}
+
+.produto-multiplo-info small {
+    display: block;
+    color: #666;
+    font-size: 0.85em;
+}
+
+.produto-multiplo-campos {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    animation: fadeInDown 0.3s ease;
+}
+
+.produto-multiplo-campos .input-pequeno {
+    width: 80px;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+    text-align: center;
+}
+
+.produto-multiplo-campos .input-pequeno:focus {
+    border-color: #C8A8D8;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(200, 168, 216, 0.2);
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* RESPONSIVIDADE MOBILE */
+@media (max-width: 768px) {
+    .produto-multiplo-item {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .produto-multiplo-checkbox {
+        width: 100%;
+        padding: 0;
+    }
+    
+    .produto-multiplo-checkbox input[type="checkbox"] {
+        margin-right: 10px;
+    }
+    
+    .produto-multiplo-info {
+        width: 100%;
+    }
+    
+    .produto-multiplo-campos {
+        width: 100%;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .produto-multiplo-campos .input-pequeno {
+        width: 100%;
+        max-width: none;
+        padding: 10px;
+        font-size: 16px !important;
+    }
+    
+    .produtos-multiplos-lista {
+        max-height: 300px;
+    }
+}
+
+@media (max-width: 480px) {
+    .produto-multiplo-item {
+        padding: 10px;
+    }
+    
+    .produto-multiplo-info strong {
+        font-size: 0.95em;
+    }
+    
+    .produto-multiplo-info small {
+        font-size: 0.8em;
+    }
+}
+
+/* ACESSIBILIDADE */
+.produto-multiplo-checkbox input[type="checkbox"]:focus {
+    outline: 2px solid #C8A8D8;
+    outline-offset: 2px;
+}
+
+.produto-multiplo-info label:focus-within {
+    outline: 2px solid #C8A8D8;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
