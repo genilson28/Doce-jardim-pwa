@@ -56,8 +56,14 @@ export class ComprasModule {
         
         this.app.pagination.setup(this.compras, 10);
         this.renderizar();
-        this.inicializarSelectFornecedor();
-        this.popularSelectProdutos();
+        
+        // Só inicializar se não existirem
+        if (!document.getElementById('compraFornecedorContainer')) {
+            this.inicializarSelectFornecedor();
+        }
+        if (!document.getElementById('compraProdutoContainer')) {
+            this.popularSelectProdutos();
+        }
     }
 
     renderizar() {
@@ -179,6 +185,23 @@ export class ComprasModule {
         lista.querySelectorAll('.select-pesquisavel-item').forEach(i => {
             i.style.display = 'block';
         });
+    }
+
+    atualizarListaProdutos() {
+        const lista = document.getElementById('listaProdutosSelect');
+        if (!lista) return;
+
+        const produtos = this.app.produtos.getProdutos();
+        
+        lista.innerHTML = produtos.map(p => `
+            <div class="select-pesquisavel-item" 
+                 data-id="${p.id}" 
+                 data-nome="${p.nome}"
+                 onclick="app.compras.selecionarProduto(${p.id}, '${p.nome.replace(/'/g, "\\'")}')">
+                <strong>${p.nome}</strong>
+                <small>Estoque: ${p.estoque} | R$ ${p.preco.toFixed(2)}</small>
+            </div>
+        `).join('');
     }
 
     popularSelectProdutos() {
@@ -434,8 +457,10 @@ export class ComprasModule {
 
             this.carrinho = [];
             this.fornecedorSelecionado = null;
+            this.produtoSelecionado = null;
             this.atualizarCarrinho();
             document.getElementById('fornecedorSelecionadoText').textContent = 'Selecione um fornecedor';
+            document.getElementById('produtoSelecionadoText').textContent = 'Selecione um produto';
             if (document.getElementById('compraObservacoes')) {
                 document.getElementById('compraObservacoes').value = '';
             }
@@ -445,7 +470,9 @@ export class ComprasModule {
             });
 
             await this.app.produtos.carregar();
-            await this.listar();
+            this.atualizarListaProdutos(); // Atualizar só a lista, não recriar tudo
+            await this.carregar();
+            this.renderizar();
 
             mostrarToast('Compra registrada com sucesso!', 'sucesso');
         } catch (error) {
