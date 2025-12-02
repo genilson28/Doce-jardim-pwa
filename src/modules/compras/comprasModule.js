@@ -10,7 +10,7 @@ export class ComprasModule {
         this.app = app;
         this.compras = [];
         this.carrinho = [];
-        this.produtosSelecionados = [];
+        this.produtosSelecionados = []; // Agora armazena { produtoId, produtoNome } para controle de Qtd > 0
         this.fornecedorSelecionado = null;
         this.valorFrete = 0;
     }
@@ -111,7 +111,15 @@ export class ComprasModule {
         // Cria e substitui o container customizado
         const container = document.createElement('div');
         container.id = 'compraFornecedorContainer';
-        selectOriginal.parentNode.replaceChild(container, selectOriginal);
+        
+        // Verifica se o elemento original está anexado antes de tentar substituí-lo
+        if (selectOriginal.parentNode) {
+            selectOriginal.parentNode.replaceChild(container, selectOriginal);
+        } else {
+            // Se o selectOriginal não estiver no DOM, apenas retorna para evitar erro.
+            return;
+        }
+
 
         const fornecedoresAtivos = this.app.fornecedores.getFornecedoresAtivos() || [];
 
@@ -194,6 +202,7 @@ export class ComprasModule {
         });
     }
 
+    // --- FUNÇÕES DE SELEÇÃO DE MÚLTIPLOS ITENS (AJUSTADAS) ---
     renderizarListaProdutosMultiplos() {
         const container = document.getElementById('listaProdutosMultiplos');
         if (!container) return;
@@ -208,39 +217,109 @@ export class ComprasModule {
         container.innerHTML = `
             <div class="produtos-multiplos-header">
                 <input type="text" id="pesquisaProdutosCompra" placeholder="🔍 Pesquisar produtos..." 
-                       oninput="app.compras.pesquisarProdutosMultiplos()" class="pesquisa-produto">
+                        oninput="app.compras.pesquisarProdutosMultiplos()" class="pesquisa-produto">
             </div>
             <div class="produtos-multiplos-lista" id="produtosMultiplosLista">
-                ${produtos.map(p => `
-                    <div class="produto-multiplo-item" data-produto-id="${p.id}">
-                        <div class="produto-multiplo-checkbox">
-                            <input type="checkbox" id="prod_${p.id}" value="${p.id}" 
-                                   onchange="app.compras.toggleProdutoSelecao(${p.id})">
-                        </div>
-                        <div class="produto-multiplo-info">
-                            <label for="prod_${p.id}">
+                ${produtos.map(p => {
+                    // Preenche os valores atuais se já estiverem no carrinho (para edição)
+                    const itemSelecionado = this.carrinho.find(i => i.produto_id === p.id) || {};
+                    
+                    // Qtd inicia em 0, Custo/Venda usam o preço atual/anterior como sugestão
+                    const quantidade = itemSelecionado.quantidade || 0; 
+                    const valorCusto = itemSelecionado.valor_custo || p.custo_unitario || '';
+                    const valorVenda = itemSelecionado.valor_venda || p.preco || '';
+
+                    // Inicializa a classe 'selected' se a QTD for > 0 (item no carrinho)
+                    const itemClass = quantidade > 0 ? 'produto-multiplo-item selected' : 'produto-multiplo-item';
+                    
+                    return `
+                        <div class="${itemClass}" data-produto-id="${p.id}" id="itemMultiplo_${p.id}">
+                            <div class="produto-multiplo-info">
                                 <strong>${p.nome}</strong>
-                                <small>Estoque atual: ${p.estoque}</small>
-                            </label>
+                                <small id="estoqueAtual_${p.id}">Estoque: ${p.estoque} | Custo Ant: R$ ${(p.custo_unitario || 0).toFixed(2)}</small>
+                                <small id="feedback_${p.id}" class="feedback-info"></small>
+                            </div>
+                            <div class="produto-multiplos-campos">
+                                <input type="number" placeholder="Qtd" min="0" value="${quantidade}" 
+                                       id="qtd_${p.id}" class="input-pequeno"
+                                       oninput="app.compras.atualizarInputItem(${p.id})">
+                                <input type="number" placeholder="Custo (R$)" min="0" step="0.01" 
+                                       value="${valorCusto}" id="custo_${p.id}" class="input-pequeno"
+                                       oninput="app.compras.atualizarInputItem(${p.id})">
+                                <input type="number" placeholder="Venda (R$)" min="0" step="0.01" 
+                                       value="${valorVenda}" id="venda_${p.id}" class="input-pequeno"
+                                       oninput="app.compras.atualizarInputItem(${p.id})">
+                            </div>
                         </div>
-                        <div class="produto-multiplo-campos" id="campos_${p.id}" style="display: none;">
-                            <input type="number" placeholder="Qtd" min="1" value="1" 
-                                   id="qtd_${p.id}" class="input-pequeno">
-                            <input type="number" placeholder="Custo (R$)" min="0" step="0.01" 
-                                   id="custo_${p.id}" class="input-pequeno">
-                            <input type="number" placeholder="Venda (R$)" min="0" step="0.01" 
-                                   id="venda_${p.id}" class="input-pequeno">
-                        </div>
-                    </div>
-                `).join('')}
+                    `;
+                }).join('')}
             </div>
             <button onclick="app.compras.adicionarProdutosSelecionados()" class="btn-primary" 
                     style="margin-top: 15px; width: 100%;" id="btnAddProdutosCompra">
-                ➕ Adicionar Produtos Selecionados
+                ➕ Adicionar Itens com Quantidade > 0
             </button>
         `;
+
+        // Inicializa a lista de produtosSelecionados com base nos itens que já estavam no carrinho
+        produtos.forEach(p => this.atualizarInputItem(p.id)); 
     }
 
+    // Novo método para validação e atualização em tempo real
+    atualizarInputItem(produtoId) {
+        const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
+        if (!produto) return;
+
+        const qtdInput = document.getElementById(`qtd_${produtoId}`);
+        const custoInput = document.getElementById(`custo_${produtoId}`);
+        const vendaInput = document.getElementById(`venda_${produtoId}`);
+        const itemDiv = document.getElementById(`itemMultiplo_${produtoId}`);
+        const feedbackText = document.getElementById(`feedback_${produtoId}`);
+
+        const quantidade = parseInt(qtdInput.value) || 0;
+        const valorCusto = parseFloat(custoInput.value) || 0;
+        const valorVenda = parseFloat(vendaInput.value) || 0;
+        
+        // --- Lógica de Seleção / Desseleção (Baseada em Quantidade > 0) ---
+        // Adiciona/Remove o item da lista de controle de itens com Qtd preenchida
+        if (quantidade > 0) {
+            if (!this.produtosSelecionados.find(item => item.produtoId === produtoId)) {
+                this.produtosSelecionados.push({ produtoId, produtoNome: produto.nome });
+            }
+            itemDiv.classList.add('selected');
+        } else {
+            this.produtosSelecionados = this.produtosSelecionados.filter(item => item.produtoId !== produtoId);
+            itemDiv.classList.remove('selected');
+        }
+        
+        // --- Lógica de Feedback/Validação Rápida ---
+        feedbackText.textContent = '';
+        feedbackText.style.color = 'gray';
+
+        if (quantidade <= 0) {
+            return; // Não valida custo/venda se não há quantidade
+        }
+
+        if (valorCusto > 0 && valorVenda > 0) {
+             if (valorCusto > valorVenda) {
+                feedbackText.textContent = `🚨 Venda (R$ ${valorVenda.toFixed(2)}) < Custo (R$ ${valorCusto.toFixed(2)}). Ajuste!`;
+                feedbackText.style.color = 'red';
+            } else {
+                const totalCusto = quantidade * valorCusto;
+                const margem = ((valorVenda - valorCusto) / valorCusto * 100).toFixed(1);
+                feedbackText.textContent = `Total: R$ ${totalCusto.toFixed(2)} | Margem: ${margem}%`;
+                feedbackText.style.color = 'green';
+            }
+        } else if (valorCusto > 0 || valorVenda > 0) {
+            // Se Qtd > 0 mas um dos valores de custo/venda está faltando
+            feedbackText.textContent = 'Preencha Custo e Venda (>0).';
+            feedbackText.style.color = 'orange';
+        }
+
+        // Garante que a lista this.produtosSelecionados está sempre atualizada
+        this.produtosSelecionados = this.produtosSelecionados
+            .filter(item => (parseInt(document.getElementById(`qtd_${item.produtoId}`).value) || 0) > 0);
+    }
+    
     pesquisarProdutosMultiplos() {
         const termo = document.getElementById('pesquisaProdutosCompra').value.toLowerCase();
         const itens = document.querySelectorAll('.produto-multiplo-item');
@@ -251,80 +330,64 @@ export class ComprasModule {
         });
     }
 
-    toggleProdutoSelecao(produtoId) {
-        const checkbox = document.getElementById(`prod_${produtoId}`);
-        const campos = document.getElementById(`campos_${produtoId}`);
-        
-        if (checkbox.checked) {
-            campos.style.display = 'flex';
-            if (!this.produtosSelecionados.includes(produtoId)) {
-                this.produtosSelecionados.push(produtoId);
-            }
-        } else {
-            campos.style.display = 'none';
-            this.produtosSelecionados = this.produtosSelecionados.filter(id => id !== produtoId);
-        }
-    }
+    // A função toggleProdutoSelecao foi removida pois não usa mais checkbox.
 
     adicionarProdutosSelecionados() {
         if (this.produtosSelecionados.length === 0) {
-            mostrarToast('Selecione ao menos um produto!', 'warning');
+            mostrarToast('Defina a quantidade para ao menos um produto!', 'warning');
             return;
         }
 
         let erros = [];
+        let produtosParaAdicionar = [];
         let adicionados = 0;
-        let produtosParaAdicionar = []; // Usaremos esta lista para limpar os campos APENAS se a validação for OK.
 
-        // Validação e Coleta de Dados
-        this.produtosSelecionados.forEach(produtoId => {
+        // Apenas itera sobre os produtos que têm Qtd > 0 (os que estão em this.produtosSelecionados)
+        this.produtosSelecionados.forEach(({ produtoId, produtoNome }) => {
             const quantidade = parseInt(document.getElementById(`qtd_${produtoId}`).value);
             const valorCusto = parseFloat(document.getElementById(`custo_${produtoId}`).value);
             const valorVenda = parseFloat(document.getElementById(`venda_${produtoId}`).value);
-            const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
             
-            if (!produto) return;
-
-            if (isNaN(quantidade) || isNaN(valorCusto) || isNaN(valorVenda)) {
-                erros.push(`${produto.nome}: preencha todos os campos.`);
+            // Validação final de que todos os inputs são válidos
+            if (isNaN(quantidade) || isNaN(valorCusto) || isNaN(valorVenda) || quantidade <= 0 || valorCusto <= 0 || valorVenda <= 0) {
+                erros.push(`${produtoNome}: Qtd, Custo e Venda devem ser maiores que zero.`);
                 return;
             }
 
-            if (quantidade <= 0 || valorCusto <= 0 || valorVenda <= 0) {
-                erros.push(`${produto.nome}: valores (Qtd, Custo, Venda) devem ser maiores que zero.`);
-                return;
-            }
-            
-            // MELHORIA 1: Validação de Venda Abaixo do Custo
+            // Validação de Venda Abaixo do Custo
             if (valorCusto > valorVenda) {
-                 erros.push(`${produto.nome}: Preço de Venda (R$ ${valorVenda.toFixed(2)}) é menor que o Custo (R$ ${valorCusto.toFixed(2)}). Ajuste.`);
+                 erros.push(`${produtoNome}: Preço de Venda (R$ ${valorVenda.toFixed(2)}) é menor que o Custo (R$ ${valorCusto.toFixed(2)}). Ajuste.`);
                  return;
             }
-
+            
+            // Se passar nas validações
             produtosParaAdicionar.push({
                 produtoId,
                 quantidade,
                 valorCusto,
                 valorVenda,
-                produtoNome: produto.nome
+                produtoNome
             });
         });
 
         if (erros.length > 0) {
-            // Se houver erros, mostre o toast e não processe nenhum item
             mostrarToast(`⚠️ Erro de validação:\n${erros.join('\n')}`, 'error');
             return;
         }
 
-        // Adição ao Carrinho e Limpeza da UI
+        // Adição ao Carrinho
         produtosParaAdicionar.forEach(({ produtoId, quantidade, valorCusto, valorVenda, produtoNome }) => {
             const total_custo = quantidade * valorCusto;
             const itemExistente = this.carrinho.find(item => item.produto_id === produtoId);
             
             if (itemExistente) {
-                itemExistente.quantidade += quantidade;
-                itemExistente.total_custo = itemExistente.quantidade * itemExistente.valor_custo;
+                // Se existe, atualiza a quantidade e recalcula o total
+                itemExistente.quantidade = quantidade;
+                itemExistente.valor_custo = valorCusto;
+                itemExistente.valor_venda = valorVenda;
+                itemExistente.total_custo = quantidade * valorCusto;
             } else {
+                // Se não existe, adiciona novo item
                 this.carrinho.push({
                     produto_id: produtoId,
                     produto_nome: produtoNome,
@@ -334,15 +397,14 @@ export class ComprasModule {
                     total_custo: total_custo
                 });
             }
+            adicionados++;
 
             // Limpa a UI dos itens processados
-            document.getElementById(`prod_${produtoId}`).checked = false;
-            document.getElementById(`campos_${produtoId}`).style.display = 'none';
-            document.getElementById(`qtd_${produtoId}`).value = '1';
+            document.getElementById(`qtd_${produtoId}`).value = '0'; 
             document.getElementById(`custo_${produtoId}`).value = '';
             document.getElementById(`venda_${produtoId}`).value = '';
-            
-            adicionados++;
+            document.getElementById(`itemMultiplo_${produtoId}`).classList.remove('selected');
+            document.getElementById(`feedback_${produtoId}`).textContent = '';
         });
 
         // Limpa a lista de IDs selecionados após o processamento bem-sucedido
@@ -350,16 +412,24 @@ export class ComprasModule {
 
         if (adicionados > 0) {
             this.atualizarCarrinho();
-            mostrarToast(`${adicionados} produto(s) adicionado(s)!`, 'sucesso');
-            // Opcional: Rolar a lista de produtos múltiplos para o topo para nova seleção
+            mostrarToast(`${adicionados} item(s) adicionado(s) ou atualizado(s) no carrinho!`, 'sucesso');
             document.getElementById('produtosMultiplosLista').scrollTop = 0; 
         }
     }
+    // --- FIM DAS FUNÇÕES DE SELEÇÃO DE MÚLTIPLOS ITENS ---
 
     removerItem(produtoId) {
         const index = this.carrinho.findIndex(item => item.produto_id === produtoId);
         if (index !== -1) {
             this.carrinho.splice(index, 1);
+            
+            // Limpa o input na lista múltipla, caso exista
+            const qtdInput = document.getElementById(`qtd_${produtoId}`);
+            if(qtdInput) qtdInput.value = '0';
+
+            // Atualiza o estado visual e reativo
+            this.atualizarInputItem(produtoId); 
+
             this.atualizarCarrinho();
             mostrarToast('Item removido do carrinho.', 'info');
         }
@@ -538,8 +608,8 @@ export class ComprasModule {
         itens.forEach((item, index) => {
             const margem = item.valor_custo > 0 ? ((item.valor_venda - item.valor_custo) / item.valor_custo * 100).toFixed(1) : 'N/A';
             mensagem += `${index + 1}. ${item.produto_nome}\n`;
-            mensagem += `   Qtd: ${item.quantidade} | Custo: R$ ${item.valor_custo.toFixed(2)} | Venda: R$ ${item.valor_venda.toFixed(2)}\n`;
-            mensagem += `   Margem: ${margem}% | Total: R$ ${item.total_custo.toFixed(2)}\n\n`;
+            mensagem += `    Qtd: ${item.quantidade} | Custo: R$ ${item.valor_custo.toFixed(2)} | Venda: R$ ${item.valor_venda.toFixed(2)}\n`;
+            mensagem += `    Margem: ${margem}% | Total: R$ ${item.total_custo.toFixed(2)}\n\n`;
         });
 
         alert(mensagem);
@@ -630,7 +700,7 @@ export class ComprasModule {
                 doc.text(`Solicitante: ${compra.usuario_nome}`, 20, y);
             }
             
-            // MELHORIA 4: Tratamento de quebra de linha para observações
+            // Tratamento de quebra de linha para observações
             if (compra.observacoes) {
                 y += 6;
                 doc.setFont(undefined, 'bold');
