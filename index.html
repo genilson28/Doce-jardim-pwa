@@ -22,6 +22,9 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Comfortaa:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/styles-responsive.css">
     <link rel="manifest" href="manifest.json">
@@ -646,87 +649,118 @@
         </main>
     </div>
 
-   <!-- TELA COMPRAS -->
-<div id="comprasScreen" class="screen">
-    <header class="app-header">
-        <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
-        <h1>📦 Compras / Investimentos</h1>
-    </header>
+    <!-- TELA COMPRAS - COMPLETAMENTE ATUALIZADA -->
+    <div id="comprasScreen" class="screen">
+        <header class="app-header">
+            <button onclick="app.showScreen('dashboardScreen')" class="btn-back">← Voltar</button>
+            <h1><i class="fas fa-shopping-cart"></i> Compras / Investimentos</h1>
+        </header>
 
-    <main>
-        <div class="content-container">
-            <div class="form-card">
-                <h3>Registrar Nova Compra</h3>
-                
-                <div class="form-group">
-                    <label>Fornecedor *</label>
-                    <select id="compraFornecedor">
-                        <option value="">Selecione um fornecedor</option>
-                    </select>
-                </div>
-
-                <hr style="margin: 20px 0;">
-                
-                <h4>📋 Selecionar Produtos</h4>
-                <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">
-                    Selecione um ou mais produtos e preencha as informações
-                </p>
-                
-                <div id="listaProdutosMultiplos" style="margin-bottom: 20px;">
-                    <div class="loading">Carregando produtos...</div>
-                </div>
-
-                <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                    <h4 style="margin-top: 0;">🛒 Itens da Compra</h4>
-                    <div id="itensCompraLista">
-                        <div class="empty-state">Nenhum item adicionado</div>
-                    </div>
+        <main>
+            <div class="content-container">
+                <div class="form-card" style="max-width: 100%;">
+                    <h3><i class="fas fa-plus-circle"></i> Registrar Nova Compra</h3>
                     
-                    <div style="border-top: 2px solid #ddd; margin-top: 15px; padding-top: 15px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span>Subtotal Produtos:</span>
-                            <strong>R$ <span id="subtotalCompra">0.00</span></strong>
+                    <!-- FORNECEDOR -->
+                    <div class="form-group">
+                        <label><i class="fas fa-truck"></i> Fornecedor *</label>
+                        <div id="compraFornecedorContainer">
+                            <select id="compraFornecedor">
+                                <option value="">Selecione um fornecedor</option>
+                            </select>
                         </div>
+                    </div>
+
+                    <hr style="margin: 25px 0; border-color: #eee;">
+                    
+                    <!-- SELEÇÃO DE PRODUTOS - NOVA INTERFACE -->
+                    <h4><i class="fas fa-boxes"></i> Selecionar Produtos</h4>
+                    <p style="color: #666; font-size: 0.9em; margin-bottom: 20px;">
+                        Use os filtros para encontrar produtos rapidamente. Preencha quantidade, custo e venda para cada item.
+                    </p>
+                    
+                    <div id="listaProdutosMultiplos" style="margin-bottom: 25px;">
+                        <div class="loading">Carregando produtos...</div>
+                    </div>
+
+                    <hr style="margin: 25px 0; border-color: #eee;">
+
+                    <!-- CARRINHO -->
+                    <div style="background: linear-gradient(135deg, #f9f9ff 0%, #f5f5ff 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #e0e0ff;">
+                        <h4 style="margin-top: 0; color: #5a5cff;">
+                            <i class="fas fa-shopping-basket"></i> Itens da Compra
+                            <span class="badge-carrinho" id="contadorCarrinho">0 itens</span>
+                        </h4>
                         
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <label for="compraFrete" style="margin: 0;">Frete:</label>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span>R$</span>
-                                <input type="number" id="compraFrete" value="0" min="0" step="0.01" 
-                                       oninput="app.compras.atualizarFrete()"
-                                       style="width: 100px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
-                                <strong>R$ <span id="freteCompra">0.00</span></strong>
+                        <div id="itensCompraLista" style="min-height: 100px;">
+                            <div class="empty-state" style="padding: 30px;">
+                                <i class="fas fa-shopping-basket" style="font-size: 48px; color: #ccc; margin-bottom: 15px;"></i>
+                                <p>Nenhum item adicionado</p>
+                                <small>Selecione produtos acima para adicionar ao carrinho</small>
                             </div>
                         </div>
                         
-                        <div style="display: flex; justify-content: space-between; font-size: 1.3em; color: #C8A8D8; border-top: 2px solid #C8A8D8; padding-top: 10px; margin-top: 10px;">
-                            <strong>TOTAL:</strong>
-                            <strong>R$ <span id="totalCompra">0.00</span></strong>
+                        <!-- RESUMO FINANCEIRO -->
+                        <div style="border-top: 2px solid #e0e0ff; margin-top: 20px; padding-top: 20px; background: white; padding: 15px; border-radius: 8px;">
+                            <div class="resumo-carrinho-item">
+                                <span>Subtotal Produtos:</span>
+                                <strong>R$ <span id="subtotalCompra">0.00</span></strong>
+                            </div>
+                            
+                            <div class="resumo-carrinho-item">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span><i class="fas fa-truck"></i> Frete:</span>
+                                    <input type="number" id="compraFrete" value="0" min="0" step="0.01" 
+                                           oninput="app.compras.atualizarFrete()"
+                                           style="width: 120px; padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px;"
+                                           placeholder="R$ 0,00">
+                                </div>
+                                <strong>R$ <span id="freteCompra">0.00</span></strong>
+                            </div>
+                            
+                            <div class="resumo-carrinho-item total" style="border-top: 2px solid #C8A8D8; padding-top: 15px; margin-top: 15px;">
+                                <span style="font-size: 1.2em;"><i class="fas fa-calculator"></i> TOTAL DA COMPRA:</span>
+                                <strong style="font-size: 1.3em; color: #C8A8D8;">R$ <span id="totalCompra">0.00</span></strong>
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- OBSERVAÇÕES -->
+                    <div class="form-group">
+                        <label><i class="fas fa-sticky-note"></i> Observações</label>
+                        <textarea id="compraObservacoes" rows="3" placeholder="Informações adicionais sobre a compra..." 
+                                  style="font-family: 'Quicksand', sans-serif;"></textarea>
+                    </div>
+
+                    <!-- BOTÃO FINALIZAR -->
+                    <button id="finalizarCompra" onclick="app.compras.finalizar()" 
+                            class="btn-primary btn-large" 
+                            style="width: 100%; padding: 15px; font-size: 1.1em; margin-top: 10px;">
+                        <i class="fas fa-check-circle"></i> Finalizar Compra
+                    </button>
+
+                    <div style="text-align: center; margin-top: 15px;">
+                        <small style="color: #888; font-size: 0.9em;">
+                            <i class="fas fa-info-circle"></i> Após finalizar, o estoque será atualizado automaticamente
+                        </small>
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Observações</label>
-                    <textarea id="compraObservacoes" rows="3" placeholder="Informações adicionais sobre a compra..."></textarea>
+                <!-- HISTÓRICO DE COMPRAS -->
+                <div class="lista-produtos">
+                    <h3><i class="fas fa-history"></i> Histórico de Compras</h3>
+                    <div class="search-section">
+                        <input type="text" id="pesquisaCompras" placeholder="🔍 Pesquisar fornecedor ou produto..." 
+                               oninput="app.compras.pesquisarHistorico()" class="search-input">
+                    </div>
+                    <div id="listaCompras">
+                        <div class="loading">Carregando compras...</div>
+                    </div>
+                    <div id="paginacaoCompras" class="paginacao"></div>
                 </div>
-
-                <button id="finalizarCompra" onclick="app.compras.finalizar()" class="btn-primary" style="width: 100%;">
-                    💾 Finalizar Compra
-                </button>
             </div>
-
-            <div class="lista-produtos">
-                <h3>Histórico de Compras</h3>
-                <div id="listaCompras">
-                    <div class="loading">Carregando compras...</div>
-                </div>
-                <div id="paginacaoCompras" class="paginacao"></div>
-            </div>
-        </div>
-    </main>
-</div>
-
+        </main>
+    </div>
 
     <!-- TELA RELATÓRIO FINANCEIRO -->
     <div id="relatorioFinanceiroScreen" class="screen">
@@ -918,7 +952,7 @@
             </div>
             <div class="form-group">
                 <label>Observações</label>
-                <textarea id="editFornecedorObservacoes" rows="3"></textarea>
+                    <textarea id="editFornecedorObservacoes" rows="3"></textarea>
             </div>
             <div class="form-group">
                 <label>
@@ -983,5 +1017,4 @@
     <!-- Aplicação Principal (MODULAR) -->
     <script type="module" src="./src/app.js"></script>
 </body>
-
 </html>
