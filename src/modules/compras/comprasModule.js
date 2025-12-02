@@ -1,4 +1,4 @@
-// ==================== MÓDULO COMPRAS - COMPLETO E PROFISSIONAL ====================
+// ==================== MÓDULO COMPRAS - COMPLETO E APRIMORADO ====================
 
 import { supabase } from '../../config/supabase.js';
 import { mostrarToast, setButtonLoading } from '../../utils/ui.js';
@@ -10,12 +10,9 @@ export class ComprasModule {
         this.app = app;
         this.compras = [];
         this.carrinho = [];
-        this.produtosDisponiveis = []; // Lista completa de produtos
+        this.produtosSelecionados = []; // Agora armazena { produtoId, produtoNome } para controle de Qtd > 0
         this.fornecedorSelecionado = null;
         this.valorFrete = 0;
-        this.filtroAtivo = 'todos'; // 'todos', 'selecionados', 'nao-selecionados'
-        this.termoPesquisa = '';
-        this.produtosSelecionados = new Set(); // Usando Set para melhor performance
     }
 
     async carregar() {
@@ -56,6 +53,7 @@ export class ComprasModule {
 
     async listar() {
         await this.carregar();
+        // Presume que app.fornecedores e app.produtos existem e têm o método carregar()
         await this.app.fornecedores.carregar(); 
         await this.app.produtos.carregar();
         
@@ -64,9 +62,6 @@ export class ComprasModule {
         
         this.inicializarSelectFornecedor();
         this.renderizarListaProdutosMultiplos();
-        
-        // Adiciona pesquisa no histórico
-        document.getElementById('pesquisaCompras')?.addEventListener('input', (e) => this.pesquisarHistorico(e.target.value));
     }
 
     renderizar() {
@@ -74,7 +69,7 @@ export class ComprasModule {
         if (!lista) return;
 
         if (this.app.pagination.filteredData.length === 0) {
-            lista.innerHTML = '<div class="empty-state"><i class="fas fa-box-open"></i><p>Nenhuma compra registrada</p></div>';
+            lista.innerHTML = '<div class="empty-state">Nenhuma compra registrada</div>';
             this.app.pagination.renderPaginationControls('paginacaoCompras', this.renderizar.bind(this));
             return;
         }
@@ -86,26 +81,19 @@ export class ComprasModule {
             
             div.innerHTML = `
                 <div class="venda-item-header">
-                    <strong><i class="fas fa-box"></i> ${compra.data_exibicao}</strong>
+                    <strong>📦 ${compra.data_exibicao}</strong>
                     <strong class="valor-venda">R$ ${compra.valor_total.toFixed(2)}</strong>
                 </div>
-                <p><strong><i class="fas fa-truck"></i> Fornecedor:</strong> ${compra.fornecedor_nome}</p>
-                ${compra.frete ? `<p><strong><i class="fas fa-shipping-fast"></i> Frete:</strong> R$ ${compra.frete.toFixed(2)}</p>` : ''}
-                ${compra.usuario_nome ? `<p><strong><i class="fas fa-user"></i> Registrado por:</strong> ${compra.usuario_nome}</p>` : ''}
-                ${compra.observacoes ? `<p><strong><i class="fas fa-sticky-note"></i> Observações:</strong> ${compra.observacoes}</p>` : ''}
-                <div class="venda-item-acoes" style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button class="btn-detalhes" data-id="${compra.id}">
-                        <i class="fas fa-search"></i> Detalhes
-                    </button>
-                    <button class="btn-pdf" data-id="${compra.id}" style="background: #2196F3;">
-                        <i class="fas fa-file-pdf"></i> PDF
-                    </button>
-                    <button class="btn-excluir" data-id="${compra.id}" style="background: #f44336;">
-                        <i class="fas fa-trash"></i> Excluir
-                    </button>
-                </div>
+                <p><strong>Fornecedor:</strong> ${compra.fornecedor_nome}</p>
+                ${compra.frete ? `<p><strong>Frete:</strong> R$ ${compra.frete.toFixed(2)}</p>` : ''}
+                ${compra.usuario_nome ? `<p><strong>Registrado por:</strong> ${compra.usuario_nome}</p>` : ''}
+                ${compra.observacoes ? `<p><strong>Observações:</strong> ${compra.observacoes}</p>` : ''}
+                <button class="btn-detalhes" data-id="${compra.id}" style="margin-top: 10px;">📋 Ver Detalhes</button>
+                <button class="btn-pdf" data-id="${compra.id}" style="margin-top: 10px; background: #2196F3;">📄 Gerar PDF</button>
+                <button class="btn-excluir" data-id="${compra.id}" style="margin-top: 10px; background: #f44336;">🗑️ Excluir</button>
             `;
             
+            // Refatoração de Eventos: Adiciona listeners via JS
             div.querySelector('.btn-detalhes').addEventListener('click', () => this.verDetalhes(compra.id));
             div.querySelector('.btn-pdf').addEventListener('click', () => this.gerarPDF(compra.id));
             div.querySelector('.btn-excluir').addEventListener('click', () => this.excluir(compra.id));
@@ -117,8 +105,21 @@ export class ComprasModule {
     }
 
     inicializarSelectFornecedor() {
-        const container = document.getElementById('compraFornecedorContainer');
-        if (!container) return;
+        const selectOriginal = document.getElementById('compraFornecedor');
+        if (!selectOriginal) return;
+
+        // Cria e substitui o container customizado
+        const container = document.createElement('div');
+        container.id = 'compraFornecedorContainer';
+        
+        // Verifica se o elemento original está anexado antes de tentar substituí-lo
+        if (selectOriginal.parentNode) {
+            selectOriginal.parentNode.replaceChild(container, selectOriginal);
+        } else {
+            // Se o selectOriginal não estiver no DOM, apenas retorna para evitar erro.
+            return;
+        }
+
 
         const fornecedoresAtivos = this.app.fornecedores.getFornecedoresAtivos() || [];
 
@@ -145,8 +146,8 @@ export class ComprasModule {
                                 data-id="${f.id}" 
                                 data-nome="${f.nome}"
                                 onclick="app.compras.selecionarFornecedor(${f.id}, '${f.nome.replace(/'/g, "\\'")}')">
-                                <strong><i class="fas fa-truck"></i> ${f.nome}</strong>
-                                ${f.contato ? `<small><i class="fas fa-phone"></i> ${f.contato}</small>` : ''}
+                                <strong>${f.nome}</strong>
+                                ${f.contato ? `<small>${f.contato}</small>` : ''}
                             </div>
                         `).join('')}
                     </div>
@@ -201,646 +202,235 @@ export class ComprasModule {
         });
     }
 
-    // --- INTERFACE PROFISSIONAL DE SELEÇÃO DE PRODUTOS ---
+    // --- FUNÇÕES DE SELEÇÃO DE MÚLTIPLOS ITENS (AJUSTADAS) ---
     renderizarListaProdutosMultiplos() {
         const container = document.getElementById('listaProdutosMultiplos');
         if (!container) return;
 
-        this.produtosDisponiveis = this.app.produtos.getProdutos();
+        const produtos = this.app.produtos.getProdutos();
         
-        if (this.produtosDisponiveis.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-box-open" style="font-size: 48px; margin-bottom: 15px; color: #ccc;"></i>
-                    <p>Nenhum produto cadastrado</p>
-                    <button class="btn-secondary" onclick="app.showScreen('produtosScreen')">
-                        <i class="fas fa-plus"></i> Cadastrar Primeiro Produto
-                    </button>
-                </div>
-            `;
+        if (produtos.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nenhum produto cadastrado</div>';
             return;
         }
 
         container.innerHTML = `
-            <div class="produtos-selecao-container">
-                <!-- CABEÇALHO COM CONTROLES -->
-                <div class="produtos-selecao-header">
-                    <div class="produtos-selecao-title">
-                        <h3><i class="fas fa-boxes"></i> Selecionar Produtos</h3>
-                        <span class="badge" id="contadorSelecionados">0 selecionados</span>
-                    </div>
-                    
-                    <div class="produtos-selecao-controls">
-                        <!-- PESQUISA -->
-                        <div class="search-box">
-                            <i class="fas fa-search"></i>
-                            <input type="text" 
-                                   id="pesquisaProdutosCompra" 
-                                   placeholder="Pesquisar produtos..."
-                                   oninput="app.compras.pesquisarProdutosMultiplos()"
-                                   class="search-input">
-                        </div>
-                        
-                        <!-- FILTROS -->
-                        <div class="filtros-container">
-                            <div class="filtro-buttons">
-                                <button class="filtro-btn ${this.filtroAtivo === 'todos' ? 'active' : ''}" 
-                                        onclick="app.compras.filtrarProdutos('todos')">
-                                    <i class="fas fa-th-list"></i> Todos
-                                </button>
-                                <button class="filtro-btn ${this.filtroAtivo === 'selecionados' ? 'active' : ''}" 
-                                        onclick="app.compras.filtrarProdutos('selecionados')">
-                                    <i class="fas fa-check-circle"></i> Selecionados
-                                </button>
-                                <button class="filtro-btn ${this.filtroAtivo === 'nao-selecionados' ? 'active' : ''}" 
-                                        onclick="app.compras.filtrarProdutos('nao-selecionados')">
-                                    <i class="fas fa-circle"></i> Não selecionados
-                                </button>
-                            </div>
-                            
-                            <!-- AÇÕES EM MASSA -->
-                            <div class="acoes-massa">
-                                <button class="btn-secondary btn-sm" onclick="app.compras.selecionarTodosProdutos()">
-                                    <i class="fas fa-check-double"></i> Selecionar Todos
-                                </button>
-                                <button class="btn-secondary btn-sm" onclick="app.compras.limparSelecaoProdutos()">
-                                    <i class="fas fa-times"></i> Limpar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- LISTA DE PRODUTOS -->
-                <div class="produtos-grid-container">
-                    <div class="produtos-grid-header">
-                        <div class="grid-col produto-info">PRODUTO</div>
-                        <div class="grid-col produto-estoque">ESTOQUE</div>
-                        <div class="grid-col produto-campos">
-                            <div class="campos-header">
-                                <span>QUANTIDADE</span>
-                                <span>CUSTO (R$)</span>
-                                <span>VENDA (R$)</span>
-                            </div>
-                        </div>
-                        <div class="grid-col produto-total">TOTAL</div>
-                        <div class="grid-col produto-acao">AÇÃO</div>
-                    </div>
-                    
-                    <div class="produtos-grid-list" id="produtosMultiplosLista">
-                        ${this.renderizarGridProdutos()}
-                    </div>
-                </div>
-                
-                <!-- RESUMO E AÇÕES -->
-                <div class="produtos-selecao-footer">
-                    <div class="resumo-selecao">
-                        <div class="resumo-item">
-                            <span class="resumo-label">Produtos selecionados:</span>
-                            <span class="resumo-valor" id="contadorProdutosSelecionados">0</span>
-                        </div>
-                        <div class="resumo-item">
-                            <span class="resumo-label">Quantidade total:</span>
-                            <span class="resumo-valor" id="quantidadeTotalSelecionada">0</span>
-                        </div>
-                        <div class="resumo-item">
-                            <span class="resumo-label">Valor total:</span>
-                            <span class="resumo-valor" id="valorTotalSelecionado">R$ 0,00</span>
-                        </div>
-                    </div>
-                    
-                    <div class="acoes-selecao">
-                        <button onclick="app.compras.adicionarProdutosSelecionados()" 
-                                class="btn-primary btn-lg" 
-                                id="btnAddProdutosCompra">
-                            <i class="fas fa-cart-plus"></i> Adicionar ao Carrinho
-                        </button>
-                        <button onclick="app.compras.limparCamposProdutos()" 
-                                class="btn-secondary">
-                            <i class="fas fa-eraser"></i> Limpar Campos
-                        </button>
-                    </div>
-                </div>
+            <div class="produtos-multiplos-header">
+                <input type="text" id="pesquisaProdutosCompra" placeholder="🔍 Pesquisar produtos..." 
+                        oninput="app.compras.pesquisarProdutosMultiplos()" class="pesquisa-produto">
             </div>
+            <div class="produtos-multiplos-lista" id="produtosMultiplosLista">
+                ${produtos.map(p => {
+                    // Preenche os valores atuais se já estiverem no carrinho (para edição)
+                    const itemSelecionado = this.carrinho.find(i => i.produto_id === p.id) || {};
+                    
+                    // Qtd inicia em 0, Custo/Venda usam o preço atual/anterior como sugestão
+                    const quantidade = itemSelecionado.quantidade || 0; 
+                    const valorCusto = itemSelecionado.valor_custo || p.custo_unitario || '';
+                    const valorVenda = itemSelecionado.valor_venda || p.preco || '';
+
+                    // Inicializa a classe 'selected' se a QTD for > 0 (item no carrinho)
+                    const itemClass = quantidade > 0 ? 'produto-multiplo-item selected' : 'produto-multiplo-item';
+                    
+                    return `
+                        <div class="${itemClass}" data-produto-id="${p.id}" id="itemMultiplo_${p.id}">
+                            <div class="produto-multiplo-info">
+                                <strong>${p.nome}</strong>
+                                <small id="estoqueAtual_${p.id}">Estoque: ${p.estoque} | Custo Ant: R$ ${(p.custo_unitario || 0).toFixed(2)}</small>
+                                <small id="feedback_${p.id}" class="feedback-info"></small>
+                            </div>
+                            <div class="produto-multiplos-campos">
+                                <input type="number" placeholder="Qtd" min="0" value="${quantidade}" 
+                                       id="qtd_${p.id}" class="input-pequeno"
+                                       oninput="app.compras.atualizarInputItem(${p.id})">
+                                <input type="number" placeholder="Custo (R$)" min="0" step="0.01" 
+                                       value="${valorCusto}" id="custo_${p.id}" class="input-pequeno"
+                                       oninput="app.compras.atualizarInputItem(${p.id})">
+                                <input type="number" placeholder="Venda (R$)" min="0" step="0.01" 
+                                       value="${valorVenda}" id="venda_${p.id}" class="input-pequeno"
+                                       oninput="app.compras.atualizarInputItem(${p.id})">
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+            <button onclick="app.compras.adicionarProdutosSelecionados()" class="btn-primary" 
+                    style="margin-top: 15px; width: 100%;" id="btnAddProdutosCompra">
+                ➕ Adicionar Itens com Quantidade > 0
+            </button>
         `;
 
-        this.atualizarResumoSelecao();
+        // Inicializa a lista de produtosSelecionados com base nos itens que já estavam no carrinho
+        produtos.forEach(p => this.atualizarInputItem(p.id)); 
     }
 
-    renderizarGridProdutos() {
-        let produtosFiltrados = [...this.produtosDisponiveis];
-        
-        // Aplica filtro
-        if (this.filtroAtivo === 'selecionados') {
-            produtosFiltrados = produtosFiltrados.filter(p => this.produtosSelecionados.has(p.id));
-        } else if (this.filtroAtivo === 'nao-selecionados') {
-            produtosFiltrados = produtosFiltrados.filter(p => !this.produtosSelecionados.has(p.id));
-        }
-        
-        // Aplica pesquisa
-        if (this.termoPesquisa) {
-            const termo = this.termoPesquisa.toLowerCase();
-            produtosFiltrados = produtosFiltrados.filter(p => 
-                p.nome.toLowerCase().includes(termo) || 
-                (p.codigo && p.codigo.toLowerCase().includes(termo))
-            );
-        }
-        
-        if (produtosFiltrados.length === 0) {
-            return `
-                <div class="empty-grid">
-                    <i class="fas fa-search" style="font-size: 40px; color: #ccc; margin-bottom: 15px;"></i>
-                    <p>Nenhum produto encontrado</p>
-                    <small>Tente alterar os filtros ou a pesquisa</small>
-                </div>
-            `;
-        }
-        
-        return produtosFiltrados.map(p => {
-            const itemNoCarrinho = this.carrinho.find(item => item.produto_id === p.id);
-            const quantidade = itemNoCarrinho?.quantidade || 0;
-            const valorCusto = itemNoCarrinho?.valor_custo || p.custo_unitario || 0;
-            const valorVenda = itemNoCarrinho?.valor_venda || p.preco || 0;
-            
-            const isSelecionado = this.produtosSelecionados.has(p.id);
-            const totalItem = quantidade * valorCusto;
-            const estoqueBaixo = p.estoque <= p.estoque_minimo;
-            const margem = this.calcularMargem(valorCusto, valorVenda);
-            
-            return `
-                <div class="produto-grid-item ${isSelecionado ? 'selecionado' : ''} ${estoqueBaixo ? 'estoque-baixo' : ''}" 
-                     id="produtoGrid_${p.id}">
-                    
-                    <!-- COLUNA 1: INFO DO PRODUTO -->
-                    <div class="grid-col produto-info">
-                        <div class="produto-check">
-                            <label class="checkbox-container">
-                                <input type="checkbox" 
-                                       ${isSelecionado ? 'checked' : ''}
-                                       onchange="app.compras.toggleSelecaoProduto(${p.id}, this.checked)">
-                                <span class="checkmark"></span>
-                            </label>
-                        </div>
-                        <div class="produto-detalhes">
-                            <strong class="produto-nome">${p.nome}</strong>
-                            ${p.codigo ? `<small class="produto-codigo">Cód: ${p.codigo}</small>` : ''}
-                            <small class="produto-custo-anterior">
-                                Custo anterior: R$ ${(p.custo_unitario || 0).toFixed(2)}
-                            </small>
-                        </div>
-                    </div>
-                    
-                    <!-- COLUNA 2: ESTOQUE -->
-                    <div class="grid-col produto-estoque">
-                        <div class="estoque-info">
-                            <span class="estoque-valor ${estoqueBaixo ? 'text-danger' : ''}">
-                                ${p.estoque} ${p.unidade_medida || 'un'}
-                            </span>
-                            ${estoqueBaixo ? 
-                                `<small class="estoque-alerta">
-                                    <i class="fas fa-exclamation-triangle"></i> Mín: ${p.estoque_minimo}
-                                </small>` : ''
-                            }
-                        </div>
-                    </div>
-                    
-                    <!-- COLUNA 3: CAMPOS DE ENTRADA -->
-                    <div class="grid-col produto-campos">
-                        <div class="campos-inputs">
-                            <input type="number" 
-                                   placeholder="Qtd" 
-                                   min="0" 
-                                   value="${quantidade}"
-                                   id="qtd_${p.id}"
-                                   class="input-quantidade ${quantidade > 0 ? 'has-value' : ''}"
-                                   oninput="app.compras.atualizarQuantidade(${p.id})"
-                                   onfocus="this.select()">
-                            
-                            <input type="number" 
-                                   placeholder="Custo" 
-                                   min="0" 
-                                   step="0.01"
-                                   value="${valorCusto}"
-                                   id="custo_${p.id}"
-                                   class="input-custo ${valorCusto > 0 ? 'has-value' : ''}"
-                                   oninput="app.compras.atualizarInputItem(${p.id})"
-                                   onfocus="this.select()">
-                            
-                            <input type="number" 
-                                   placeholder="Venda" 
-                                   min="0" 
-                                   step="0.01"
-                                   value="${valorVenda}"
-                                   id="venda_${p.id}"
-                                   class="input-venda ${valorVenda > 0 ? 'has-value' : ''}"
-                                   oninput="app.compras.atualizarInputItem(${p.id})"
-                                   onfocus="this.select()">
-                        </div>
-                        <div class="campos-feedback" id="feedback_${p.id}"></div>
-                    </div>
-                    
-                    <!-- COLUNA 4: TOTAL -->
-                    <div class="grid-col produto-total">
-                        <div class="total-item" id="total_${p.id}">
-                            R$ ${totalItem.toFixed(2)}
-                        </div>
-                        ${quantidade > 0 && valorCusto > 0 && valorVenda > 0 ? 
-                            `<small class="margem-item" id="margem_${p.id}">
-                                ${margem}%
-                            </small>` : ''
-                        }
-                    </div>
-                    
-                    <!-- COLUNA 5: AÇÕES -->
-                    <div class="grid-col produto-acao">
-                        <button class="btn-icon" 
-                                onclick="app.compras.replicarValoresProduto(${p.id})"
-                                title="Replicar valores para outros produtos">
-                            <i class="fas fa-clone"></i>
-                        </button>
-                        <button class="btn-icon" 
-                                onclick="app.compras.verDetalhesProduto(${p.id})"
-                                title="Ver detalhes">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    // --- NOVOS MÉTODOS PARA CONTROLE DE SELEÇÃO ---
-
-    toggleSelecaoProduto(produtoId, selecionado) {
-        const qtdInput = document.getElementById(`qtd_${produtoId}`);
-        
-        if (selecionado) {
-            this.produtosSelecionados.add(produtoId);
-            // Se selecionado e quantidade é 0, define como 1
-            if (!qtdInput.value || parseInt(qtdInput.value) === 0) {
-                qtdInput.value = 1;
-                this.atualizarQuantidade(produtoId);
-            }
-        } else {
-            this.produtosSelecionados.delete(produtoId);
-            // Se desselecionado, zera a quantidade
-            qtdInput.value = 0;
-            this.atualizarQuantidade(produtoId);
-        }
-        
-        this.atualizarResumoSelecao();
-        this.filtrarProdutos(this.filtroAtivo); // Reaplica o filtro
-    }
-
-    selecionarTodosProdutos() {
-        this.produtosDisponiveis.forEach(p => {
-            if (!this.produtosSelecionados.has(p.id)) {
-                this.produtosSelecionados.add(p.id);
-                const qtdInput = document.getElementById(`qtd_${p.id}`);
-                if (qtdInput && (!qtdInput.value || parseInt(qtdInput.value) === 0)) {
-                    qtdInput.value = 1;
-                    this.atualizarQuantidade(p.id);
-                }
-            }
-        });
-        this.atualizarResumoSelecao();
-        this.renderizarGridProdutos(); // Atualiza a grid
-        mostrarToast('Todos os produtos foram selecionados', 'info');
-    }
-
-    limparSelecaoProdutos() {
-        this.produtosSelecionados.clear();
-        this.produtosDisponiveis.forEach(p => {
-            const qtdInput = document.getElementById(`qtd_${p.id}`);
-            if (qtdInput) {
-                qtdInput.value = 0;
-                this.atualizarQuantidade(p.id);
-            }
-        });
-        this.atualizarResumoSelecao();
-        this.renderizarGridProdutos(); // Atualiza a grid
-        mostrarToast('Seleção de produtos limpa', 'info');
-    }
-
-    limparCamposProdutos() {
-        this.produtosDisponiveis.forEach(p => {
-            ['qtd', 'custo', 'venda'].forEach(tipo => {
-                const input = document.getElementById(`${tipo}_${p.id}`);
-                if (input) input.value = '';
-            });
-            this.atualizarInputItem(p.id);
-        });
-        this.atualizarResumoSelecao();
-        mostrarToast('Campos limpos', 'info');
-    }
-
-    filtrarProdutos(filtro) {
-        this.filtroAtivo = filtro;
-        this.renderizarGridProdutos();
-    }
-
-    pesquisarProdutosMultiplos() {
-        const input = document.getElementById('pesquisaProdutosCompra');
-        if (input) {
-            this.termoPesquisa = input.value;
-            this.renderizarGridProdutos();
-        }
-    }
-
-    atualizarQuantidade(produtoId) {
-        const qtdInput = document.getElementById(`qtd_${produtoId}`);
-        const quantidade = parseInt(qtdInput.value) || 0;
-        
-        // Atualiza checkbox baseado na quantidade
-        if (quantidade > 0) {
-            this.produtosSelecionados.add(produtoId);
-        } else {
-            this.produtosSelecionados.delete(produtoId);
-        }
-        
-        // Atualiza o item
-        this.atualizarInputItem(produtoId);
-        this.atualizarResumoSelecao();
-    }
-
+    // Novo método para validação e atualização em tempo real
     atualizarInputItem(produtoId) {
-        const produto = this.produtosDisponiveis.find(p => p.id === produtoId);
+        const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
         if (!produto) return;
 
         const qtdInput = document.getElementById(`qtd_${produtoId}`);
         const custoInput = document.getElementById(`custo_${produtoId}`);
         const vendaInput = document.getElementById(`venda_${produtoId}`);
-        const totalElement = document.getElementById(`total_${produtoId}`);
-        const margemElement = document.getElementById(`margem_${produtoId}`);
-        const feedbackElement = document.getElementById(`feedback_${produtoId}`);
-        const gridItem = document.getElementById(`produtoGrid_${produtoId}`);
+        const itemDiv = document.getElementById(`itemMultiplo_${produtoId}`);
+        const feedbackText = document.getElementById(`feedback_${produtoId}`);
 
         const quantidade = parseInt(qtdInput.value) || 0;
         const valorCusto = parseFloat(custoInput.value) || 0;
         const valorVenda = parseFloat(vendaInput.value) || 0;
-        const totalItem = quantidade * valorCusto;
-
-        // Atualiza classes visuais
-        if (gridItem) {
-            gridItem.classList.toggle('selecionado', quantidade > 0);
-        }
-
-        // Atualiza campos de entrada
-        qtdInput.classList.toggle('has-value', quantidade > 0);
-        custoInput.classList.toggle('has-value', valorCusto > 0);
-        vendaInput.classList.toggle('has-value', valorVenda > 0);
-
-        // Atualiza total
-        if (totalElement) {
-            totalElement.textContent = `R$ ${totalItem.toFixed(2)}`;
-            totalElement.style.fontWeight = totalItem > 0 ? 'bold' : 'normal';
-        }
-
-        // Atualiza margem
-        if (margemElement && quantidade > 0 && valorCusto > 0 && valorVenda > 0) {
-            const margem = this.calcularMargem(valorCusto, valorVenda);
-            margemElement.textContent = `${margem}%`;
-            margemElement.className = `margem-item ${margem >= 30 ? 'margem-alta' : margem >= 10 ? 'margem-media' : 'margem-baixa'}`;
-        }
-
-        // Feedback de validação
-        if (feedbackElement) {
-            feedbackElement.textContent = '';
-            
-            if (quantidade > 0) {
-                if (valorCusto <= 0 || valorVenda <= 0) {
-                    feedbackElement.textContent = 'Preencha custo e venda';
-                    feedbackElement.className = 'feedback-warning';
-                } else if (valorCusto > valorVenda) {
-                    feedbackElement.textContent = 'Venda abaixo do custo!';
-                    feedbackElement.className = 'feedback-danger';
-                } else {
-                    const margem = this.calcularMargem(valorCusto, valorVenda);
-                    feedbackElement.textContent = `Margem: ${margem}%`;
-                    feedbackElement.className = margem >= 20 ? 'feedback-success' : 'feedback-warning';
-                }
-            }
-        }
-
-        // Atualiza checkbox
-        const checkbox = gridItem?.querySelector('input[type="checkbox"]');
-        if (checkbox) {
-            checkbox.checked = quantidade > 0;
-        }
-
-        // Atualiza contadores
-        const contadorSelecionados = document.getElementById('contadorSelecionados');
-        if (contadorSelecionados) {
-            contadorSelecionados.textContent = `${this.produtosSelecionados.size} selecionados`;
-            contadorSelecionados.className = `badge ${this.produtosSelecionados.size > 0 ? 'badge-primary' : 'badge-secondary'}`;
-        }
-    }
-
-    calcularMargem(custo, venda) {
-        if (!custo || custo <= 0) return 0;
-        const margem = ((venda - custo) / custo * 100);
-        return Math.max(0, margem).toFixed(1);
-    }
-
-    atualizarResumoSelecao() {
-        let selecionados = 0;
-        let quantidadeTotal = 0;
-        let valorTotal = 0;
         
-        this.produtosDisponiveis.forEach(p => {
-            if (this.produtosSelecionados.has(p.id)) {
-                const qtd = parseInt(document.getElementById(`qtd_${p.id}`)?.value || '0');
-                const custo = parseFloat(document.getElementById(`custo_${p.id}`)?.value || '0');
-                
-                selecionados++;
-                quantidadeTotal += qtd;
-                valorTotal += qtd * custo;
+        // --- Lógica de Seleção / Desseleção (Baseada em Quantidade > 0) ---
+        // Adiciona/Remove o item da lista de controle de itens com Qtd preenchida
+        if (quantidade > 0) {
+            if (!this.produtosSelecionados.find(item => item.produtoId === produtoId)) {
+                this.produtosSelecionados.push({ produtoId, produtoNome: produto.nome });
             }
+            itemDiv.classList.add('selected');
+        } else {
+            this.produtosSelecionados = this.produtosSelecionados.filter(item => item.produtoId !== produtoId);
+            itemDiv.classList.remove('selected');
+        }
+        
+        // --- Lógica de Feedback/Validação Rápida ---
+        feedbackText.textContent = '';
+        feedbackText.style.color = 'gray';
+
+        if (quantidade <= 0) {
+            return; // Não valida custo/venda se não há quantidade
+        }
+
+        if (valorCusto > 0 && valorVenda > 0) {
+             if (valorCusto > valorVenda) {
+                feedbackText.textContent = `🚨 Venda (R$ ${valorVenda.toFixed(2)}) < Custo (R$ ${valorCusto.toFixed(2)}). Ajuste!`;
+                feedbackText.style.color = 'red';
+            } else {
+                const totalCusto = quantidade * valorCusto;
+                const margem = ((valorVenda - valorCusto) / valorCusto * 100).toFixed(1);
+                feedbackText.textContent = `Total: R$ ${totalCusto.toFixed(2)} | Margem: ${margem}%`;
+                feedbackText.style.color = 'green';
+            }
+        } else if (valorCusto > 0 || valorVenda > 0) {
+            // Se Qtd > 0 mas um dos valores de custo/venda está faltando
+            feedbackText.textContent = 'Preencha Custo e Venda (>0).';
+            feedbackText.style.color = 'orange';
+        }
+
+        // Garante que a lista this.produtosSelecionados está sempre atualizada
+        this.produtosSelecionados = this.produtosSelecionados
+            .filter(item => (parseInt(document.getElementById(`qtd_${item.produtoId}`).value) || 0) > 0);
+    }
+    
+    pesquisarProdutosMultiplos() {
+        const termo = document.getElementById('pesquisaProdutosCompra').value.toLowerCase();
+        const itens = document.querySelectorAll('.produto-multiplo-item');
+        
+        itens.forEach(item => {
+            const texto = item.textContent.toLowerCase();
+            item.style.display = texto.includes(termo) ? 'flex' : 'none';
         });
-        
-        // Atualiza contadores na UI
-        const contadorProdutosSelecionados = document.getElementById('contadorProdutosSelecionados');
-        const quantidadeTotalSelecionada = document.getElementById('quantidadeTotalSelecionada');
-        const valorTotalSelecionado = document.getElementById('valorTotalSelecionado');
-        
-        if (contadorProdutosSelecionados) contadorProdutosSelecionados.textContent = selecionados;
-        if (quantidadeTotalSelecionada) quantidadeTotalSelecionada.textContent = quantidadeTotal;
-        if (valorTotalSelecionado) valorTotalSelecionado.textContent = `R$ ${valorTotal.toFixed(2)}`;
     }
 
-    replicarValoresProduto(produtoId) {
-        const quantidade = document.getElementById(`qtd_${produtoId}`)?.value || '0';
-        const custo = document.getElementById(`custo_${produtoId}`)?.value || '';
-        const venda = document.getElementById(`venda_${produtoId}`)?.value || '';
-        
-        if (!quantidade || quantidade === '0') {
-            mostrarToast('Defina os valores primeiro para replicar', 'warning');
-            return;
-        }
-        
-        if (confirm(`Deseja replicar os valores (Qtd: ${quantidade}, Custo: R$ ${custo}, Venda: R$ ${venda}) para todos os produtos selecionados?`)) {
-            this.produtosSelecionados.forEach(id => {
-                if (id !== produtoId) {
-                    const qtdInput = document.getElementById(`qtd_${id}`);
-                    const custoInput = document.getElementById(`custo_${id}`);
-                    const vendaInput = document.getElementById(`venda_${id}`);
-                    
-                    if (qtdInput) qtdInput.value = quantidade;
-                    if (custoInput) custoInput.value = custo;
-                    if (vendaInput) vendaInput.value = venda;
-                    
-                    this.atualizarQuantidade(id);
-                }
-            });
-            
-            mostrarToast('Valores replicados com sucesso', 'sucesso');
-        }
-    }
+    // A função toggleProdutoSelecao foi removida pois não usa mais checkbox.
 
-    verDetalhesProduto(produtoId) {
-        const produto = this.produtosDisponiveis.find(p => p.id === produtoId);
-        if (!produto) return;
-        
-        let detalhes = `
-            📦 DETALHES DO PRODUTO
-            --------------------
-            Nome: ${produto.nome}
-            ${produto.codigo ? `Código: ${produto.codigo}` : ''}
-            Estoque atual: ${produto.estoque} ${produto.unidade_medida || 'un'}
-            Estoque mínimo: ${produto.estoque_minimo}
-            --------------------
-            Preço de custo: R$ ${(produto.custo_unitario || 0).toFixed(2)}
-            Preço de venda: R$ ${(produto.preco || 0).toFixed(2)}
-            Margem atual: ${this.calcularMargem(produto.custo_unitario, produto.preco)}%
-        `;
-        
-        alert(detalhes);
-    }
-
-    // Método atualizado para adicionar produtos ao carrinho
     adicionarProdutosSelecionados() {
-        const produtosParaAdicionar = [];
+        if (this.produtosSelecionados.length === 0) {
+            mostrarToast('Defina a quantidade para ao menos um produto!', 'warning');
+            return;
+        }
+
         let erros = [];
-        
-        // Coleta apenas produtos selecionados
-        this.produtosSelecionados.forEach(produtoId => {
-            const produto = this.produtosDisponiveis.find(p => p.id === produtoId);
-            if (!produto) return;
-            
-            const quantidade = parseInt(document.getElementById(`qtd_${produtoId}`)?.value || '0');
-            
-            if (quantidade > 0) {
-                const valorCusto = parseFloat(document.getElementById(`custo_${produtoId}`)?.value || '0');
-                const valorVenda = parseFloat(document.getElementById(`venda_${produtoId}`)?.value || '0');
-                
-                // Validações
-                if (valorCusto <= 0) {
-                    erros.push(`${produto.nome}: Custo unitário deve ser maior que zero`);
-                    return;
-                }
-                
-                if (valorVenda <= 0) {
-                    erros.push(`${produto.nome}: Preço de venda deve ser maior que zero`);
-                    return;
-                }
-                
-                if (valorCusto > valorVenda) {
-                    erros.push(`${produto.nome}: Venda (R$ ${valorVenda.toFixed(2)}) abaixo do custo (R$ ${valorCusto.toFixed(2)})`);
-                    return;
-                }
-                
-                produtosParaAdicionar.push({
-                    produtoId: produto.id,
-                    produtoNome: produto.nome,
-                    quantidade,
-                    valorCusto,
-                    valorVenda,
-                    totalCusto: quantidade * valorCusto
-                });
-            }
-        });
-        
-        if (erros.length > 0) {
-            mostrarToast(`Erros encontrados:\n${erros.slice(0, 3).join('\n')}${erros.length > 3 ? '\n...' : ''}`, 'error');
-            return;
-        }
-        
-        if (produtosParaAdicionar.length === 0) {
-            mostrarToast('Selecione ao menos um produto com quantidade > 0', 'warning');
-            return;
-        }
-        
-        // Processa cada produto
+        let produtosParaAdicionar = [];
         let adicionados = 0;
-        let atualizados = 0;
-        
-        produtosParaAdicionar.forEach(item => {
-            const itemExistente = this.carrinho.find(i => i.produto_id === item.produtoId);
+
+        // Apenas itera sobre os produtos que têm Qtd > 0 (os que estão em this.produtosSelecionados)
+        this.produtosSelecionados.forEach(({ produtoId, produtoNome }) => {
+            const quantidade = parseInt(document.getElementById(`qtd_${produtoId}`).value);
+            const valorCusto = parseFloat(document.getElementById(`custo_${produtoId}`).value);
+            const valorVenda = parseFloat(document.getElementById(`venda_${produtoId}`).value);
+            
+            // Validação final de que todos os inputs são válidos
+            if (isNaN(quantidade) || isNaN(valorCusto) || isNaN(valorVenda) || quantidade <= 0 || valorCusto <= 0 || valorVenda <= 0) {
+                erros.push(`${produtoNome}: Qtd, Custo e Venda devem ser maiores que zero.`);
+                return;
+            }
+
+            // Validação de Venda Abaixo do Custo
+            if (valorCusto > valorVenda) {
+                 erros.push(`${produtoNome}: Preço de Venda (R$ ${valorVenda.toFixed(2)}) é menor que o Custo (R$ ${valorCusto.toFixed(2)}). Ajuste.`);
+                 return;
+            }
+            
+            // Se passar nas validações
+            produtosParaAdicionar.push({
+                produtoId,
+                quantidade,
+                valorCusto,
+                valorVenda,
+                produtoNome
+            });
+        });
+
+        if (erros.length > 0) {
+            mostrarToast(`⚠️ Erro de validação:\n${erros.join('\n')}`, 'error');
+            return;
+        }
+
+        // Adição ao Carrinho
+        produtosParaAdicionar.forEach(({ produtoId, quantidade, valorCusto, valorVenda, produtoNome }) => {
+            const total_custo = quantidade * valorCusto;
+            const itemExistente = this.carrinho.find(item => item.produto_id === produtoId);
             
             if (itemExistente) {
-                // Atualiza item existente
-                Object.assign(itemExistente, {
-                    quantidade: item.quantidade,
-                    valor_custo: item.valorCusto,
-                    valor_venda: item.valorVenda,
-                    total_custo: item.totalCusto
-                });
-                atualizados++;
+                // Se existe, atualiza a quantidade e recalcula o total
+                itemExistente.quantidade = quantidade;
+                itemExistente.valor_custo = valorCusto;
+                itemExistente.valor_venda = valorVenda;
+                itemExistente.total_custo = quantidade * valorCusto;
             } else {
-                // Adiciona novo item
+                // Se não existe, adiciona novo item
                 this.carrinho.push({
-                    produto_id: item.produtoId,
-                    produto_nome: item.produtoNome,
-                    quantidade: item.quantidade,
-                    valor_custo: item.valorCusto,
-                    valor_venda: item.valorVenda,
-                    total_custo: item.totalCusto
+                    produto_id: produtoId,
+                    produto_nome: produtoNome,
+                    quantidade: quantidade,
+                    valor_custo: valorCusto,
+                    valor_venda: valorVenda,
+                    total_custo: total_custo
                 });
-                adicionados++;
             }
-            
-            // Limpa os campos na UI
-            document.getElementById(`qtd_${item.produtoId}`).value = '0';
-            document.getElementById(`custo_${item.produtoId}`).value = '';
-            document.getElementById(`venda_${item.produtoId}`).value = '';
-            this.atualizarQuantidade(item.produtoId);
+            adicionados++;
+
+            // Limpa a UI dos itens processados
+            document.getElementById(`qtd_${produtoId}`).value = '0'; 
+            document.getElementById(`custo_${produtoId}`).value = '';
+            document.getElementById(`venda_${produtoId}`).value = '';
+            document.getElementById(`itemMultiplo_${produtoId}`).classList.remove('selected');
+            document.getElementById(`feedback_${produtoId}`).textContent = '';
         });
-        
-        // Limpa seleção
-        this.produtosSelecionados.clear();
-        this.atualizarResumoSelecao();
-        
-        // Atualiza o carrinho e mostra feedback
-        this.atualizarCarrinho();
-        
-        let mensagem = '';
-        if (adicionados > 0) mensagem += `${adicionados} item(s) adicionado(s)`;
-        if (atualizados > 0) {
-            if (mensagem) mensagem += ' e ';
-            mensagem += `${atualizados} item(s) atualizado(s)`;
+
+        // Limpa a lista de IDs selecionados após o processamento bem-sucedido
+        this.produtosSelecionados = [];
+
+        if (adicionados > 0) {
+            this.atualizarCarrinho();
+            mostrarToast(`${adicionados} item(s) adicionado(s) ou atualizado(s) no carrinho!`, 'sucesso');
+            document.getElementById('produtosMultiplosLista').scrollTop = 0; 
         }
-        
-        mostrarToast(`${mensagem} ao carrinho!`, 'sucesso');
-        
-        // Scroll para o topo da grid
-        document.querySelector('.produtos-grid-list').scrollTop = 0;
     }
+    // --- FIM DAS FUNÇÕES DE SELEÇÃO DE MÚLTIPLOS ITENS ---
 
     removerItem(produtoId) {
         const index = this.carrinho.findIndex(item => item.produto_id === produtoId);
         if (index !== -1) {
             this.carrinho.splice(index, 1);
             
-            // Limpa os campos na lista múltipla
-            document.getElementById(`qtd_${produtoId}`).value = '0';
-            document.getElementById(`custo_${produtoId}`).value = '';
-            document.getElementById(`venda_${produtoId}`).value = '';
-            
-            // Atualiza o estado
-            this.produtosSelecionados.delete(produtoId);
-            this.atualizarInputItem(produtoId);
+            // Limpa o input na lista múltipla, caso exista
+            const qtdInput = document.getElementById(`qtd_${produtoId}`);
+            if(qtdInput) qtdInput.value = '0';
+
+            // Atualiza o estado visual e reativo
+            this.atualizarInputItem(produtoId); 
+
             this.atualizarCarrinho();
-            
             mostrarToast('Item removido do carrinho.', 'info');
         }
     }
@@ -848,7 +438,8 @@ export class ComprasModule {
     atualizarFrete() {
         const inputFrete = document.getElementById('compraFrete');
         if (inputFrete) {
-            this.valorFrete = parseFloat(inputFrete.value) || 0;
+            // Usa o valor, garante que NaN vira 0
+            this.valorFrete = parseFloat(inputFrete.value) || 0; 
         }
         this.atualizarCarrinho();
     }
@@ -858,17 +449,10 @@ export class ComprasModule {
         if (!lista) return;
 
         if (this.carrinho.length === 0) {
-            lista.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-shopping-basket" style="font-size: 48px; color: #ccc; margin-bottom: 15px;"></i>
-                    <p>Nenhum item adicionado</p>
-                    <small>Selecione produtos acima para adicionar ao carrinho</small>
-                </div>
-            `;
+            lista.innerHTML = '<div class="empty-state">Nenhum item adicionado</div>';
             document.getElementById('subtotalCompra').textContent = '0.00';
             document.getElementById('freteCompra').textContent = this.valorFrete.toFixed(2);
             document.getElementById('totalCompra').textContent = this.valorFrete.toFixed(2);
-            document.getElementById('contadorCarrinho').textContent = '0 itens';
             return;
         }
 
@@ -878,29 +462,24 @@ export class ComprasModule {
         this.carrinho.forEach(item => {
             subtotal += item.total_custo;
             
-            const margem = this.calcularMargem(item.valor_custo, item.valor_venda);
-            const margemClass = margem >= 30 ? 'alta' : margem >= 10 ? 'media' : 'baixa';
+            const margem = item.valor_custo > 0 ? ((item.valor_venda - item.valor_custo) / item.valor_custo * 100).toFixed(1) : 0;
+            const corMargem = item.valor_custo > 0 && item.valor_venda >= item.valor_custo ? 'green' : (item.valor_custo > 0 ? 'red' : 'gray');
             
             const div = document.createElement('div');
-            div.className = 'carrinho-item compra';
+            div.className = 'carrinho-item';
             div.innerHTML = `
                 <div class="carrinho-item-info">
                     <h4>${item.produto_nome}</h4>
-                    <p>
-                        <span>Qtd: ${item.quantidade}</span> | 
-                        <span>Custo: R$ ${item.valor_custo.toFixed(2)}</span> | 
-                        <span>Venda: R$ ${item.valor_venda.toFixed(2)}</span>
-                    </p>
-                    <small class="margem-visual ${margemClass}">Margem: ${margem}%</small>
+                    <p>Qtd: ${item.quantidade} | Custo: R$ ${item.valor_custo.toFixed(2)} | Venda: R$ ${item.valor_venda.toFixed(2)}</p>
+                    <small style="color: ${corMargem};">Margem: ${margem}%</small>
                 </div>
                 <div class="carrinho-item-acoes">
                     <span>R$ ${item.total_custo.toFixed(2)}</span>
-                    <button class="btn-remover-item" data-id="${item.produto_id}">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <button class="btn-remover-item" data-id="${item.produto_id}">🗑️</button>
                 </div>
             `;
             
+            // Refatoração de Eventos
             div.querySelector('.btn-remover-item').addEventListener('click', () => this.removerItem(item.produto_id));
             lista.appendChild(div);
         });
@@ -910,27 +489,6 @@ export class ComprasModule {
         document.getElementById('subtotalCompra').textContent = subtotal.toFixed(2);
         document.getElementById('freteCompra').textContent = this.valorFrete.toFixed(2);
         document.getElementById('totalCompra').textContent = totalGeral.toFixed(2);
-        document.getElementById('contadorCarrinho').textContent = `${this.carrinho.length} ${this.carrinho.length === 1 ? 'item' : 'itens'}`;
-    }
-
-    pesquisarHistorico(termo = '') {
-        termo = termo.toLowerCase();
-        const lista = document.getElementById('listaCompras');
-        if (!lista) return;
-
-        const itens = lista.querySelectorAll('.venda-item');
-        let visiveis = 0;
-
-        itens.forEach(item => {
-            const texto = item.textContent.toLowerCase();
-            const visivel = texto.includes(termo);
-            item.style.display = visivel ? 'block' : 'none';
-            if (visivel) visiveis++;
-        });
-
-        if (visiveis === 0 && termo) {
-            lista.innerHTML = '<div class="empty-state">Nenhuma compra encontrada para esta pesquisa</div>';
-        }
     }
 
     async finalizar() {
@@ -944,7 +502,7 @@ export class ComprasModule {
             return;
         }
 
-        setButtonLoading('finalizarCompra', true, '<i class="fas fa-spinner fa-spin"></i> Finalizando...');
+        setButtonLoading('finalizarCompra', true, 'Finalizando...');
 
         try {
             const fornecedor = this.app.fornecedores.fornecedores.find(f => f.id === this.fornecedorSelecionado);
@@ -989,7 +547,7 @@ export class ComprasModule {
                 if (produto) {
                     const novoEstoque = produto.estoque + item.quantidade;
                     
-                    // Só atualiza se for diferente
+                    // Otimização: Só atualiza se for diferente para evitar triggers desnecessários
                     if (novoEstoque !== produto.estoque || item.valor_custo !== produto.custo_unitario || item.valor_venda !== produto.preco) {
                         await supabase.from('produto').update({
                             estoque: novoEstoque,
@@ -1000,25 +558,25 @@ export class ComprasModule {
                 }
             }
 
-            // 4. Limpar Estado e UI
+            // 4. Limpar Estado e UI (melhor organização)
             this.carrinho = [];
             this.fornecedorSelecionado = null;
             this.valorFrete = 0;
-            this.produtosSelecionados.clear();
+            this.produtosSelecionados = [];
             
             this.atualizarCarrinho();
             document.getElementById('fornecedorSelecionadoText').textContent = 'Selecione um fornecedor';
             document.getElementById('compraObservacoes').value = '';
             document.getElementById('compraFrete').value = '0';
 
-            // Limpa seleção do fornecedor
+            // Remove a classe 'selected' do fornecedor
             document.querySelectorAll('.select-pesquisavel-item').forEach(i => i.classList.remove('selected'));
 
             // 5. Recarregar Listas de Dados
-            await this.app.produtos.carregar();
-            this.renderizarListaProdutosMultiplos();
-            await this.carregar();
-            this.renderizar();
+            await this.app.produtos.carregar(); // Recarrega produtos para ter o novo estoque
+            this.renderizarListaProdutosMultiplos(); // Atualiza a lista múltipla
+            await this.carregar(); // Recarrega a lista de compras
+            this.renderizar(); // Renderiza a lista de compras atualizada
 
             mostrarToast('Compra registrada com sucesso!', 'sucesso');
             
@@ -1029,7 +587,7 @@ export class ComprasModule {
             console.error('❌ Erro ao registrar compra:', error);
             mostrarToast(handleSupabaseError(error), 'error');
         } finally {
-            setButtonLoading('finalizarCompra', false, '<i class="fas fa-check-circle"></i> Finalizar Compra');
+            setButtonLoading('finalizarCompra', false, '✅ Finalizar Compra');
         }
     }
 
@@ -1048,7 +606,7 @@ export class ComprasModule {
         mensagem += `\n────────────────────────\nITENS:\n────────────────────────\n\n`;
 
         itens.forEach((item, index) => {
-            const margem = this.calcularMargem(item.valor_custo, item.valor_venda);
+            const margem = item.valor_custo > 0 ? ((item.valor_venda - item.valor_custo) / item.valor_custo * 100).toFixed(1) : 'N/A';
             mensagem += `${index + 1}. ${item.produto_nome}\n`;
             mensagem += `    Qtd: ${item.quantidade} | Custo: R$ ${item.valor_custo.toFixed(2)} | Venda: R$ ${item.valor_venda.toFixed(2)}\n`;
             mensagem += `    Margem: ${margem}% | Total: R$ ${item.total_custo.toFixed(2)}\n\n`;
@@ -1070,7 +628,8 @@ export class ComprasModule {
             for (const item of itens) {
                 const produto = this.app.produtos.getProdutos().find(p => p.id === item.produto_id);
                 if (produto) {
-                    const novoEstoque = Math.max(0, produto.estoque - item.quantidade);
+                    // MELHORIA 2: Garante que o estoque não fique negativo
+                    const novoEstoque = Math.max(0, produto.estoque - item.quantidade); 
                     await supabase.from('produto').update({
                         estoque: novoEstoque
                     }).eq('id', produto.id);
@@ -1091,6 +650,7 @@ export class ComprasModule {
         }
     }
 
+    // Nota: Requer a inclusão da biblioteca jsPDF no projeto (ex: <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>)
     async gerarPDF(compraId) {
         const compra = this.compras.find(c => c.id === compraId);
         if (!compra) {
@@ -1098,6 +658,7 @@ export class ComprasModule {
             return;
         }
         
+        // Verifica se jsPDF está disponível
         if (!window.jspdf || !window.jspdf.jsPDF) {
             mostrarToast('Biblioteca jsPDF não carregada. Não é possível gerar o PDF.', 'error');
             return;
@@ -1139,21 +700,22 @@ export class ComprasModule {
                 doc.text(`Solicitante: ${compra.usuario_nome}`, 20, y);
             }
             
+            // Tratamento de quebra de linha para observações
             if (compra.observacoes) {
                 y += 6;
                 doc.setFont(undefined, 'bold');
                 doc.text(`Observações:`, 20, y);
                 doc.setFont(undefined, 'normal');
                 
-                const obsText = doc.splitTextToSize(compra.observacoes, 150);
+                const obsText = doc.splitTextToSize(compra.observacoes, 150); // Divide em linhas com 150mm de largura
                 y += 4;
                 doc.text(obsText, 20, y);
-                y += obsText.length * 5;
+                y += obsText.length * 5; // Avança o Y conforme o número de linhas
             }
             
-            y += 5;
+            y += 5; // Espaçamento após info
 
-            if (y > 250) {
+            if (y > 250) { // Se o cabeçalho ficou muito grande, passa para a próxima página
                 doc.addPage();
                 y = 20;
             }
@@ -1188,6 +750,7 @@ export class ComprasModule {
                 if (y > 250) {
                     doc.addPage();
                     y = 20;
+                    // Repete o cabeçalho de itens na nova página
                     doc.setFontSize(9);
                     doc.setFont(undefined, 'bold');
                     doc.text('Produto', 20, y);
@@ -1213,7 +776,7 @@ export class ComprasModule {
             });
             
             y += 4;
-            doc.line(110, y, 190, y);
+            doc.line(110, y, 190, y); // Linha apenas abaixo dos itens
             y += 8;
             
             doc.setFontSize(10);
@@ -1229,7 +792,7 @@ export class ComprasModule {
             
             y += 10;
             doc.setDrawColor(100, 100, 100);
-            doc.line(110, y, 190, y);
+            doc.line(110, y, 190, y); // Linha dupla
             
             y += 8;
             doc.setFontSize(12);
@@ -1257,3 +820,4 @@ export class ComprasModule {
         }
     }
 }
+
