@@ -1,4 +1,4 @@
-// ==================== MÓDULO COMPRAS - COMPLETO ====================
+// ==================== MÓDULO COMPRAS - COMPLETO E APRIMORADO ====================
 
 import { supabase } from '../../config/supabase.js';
 import { mostrarToast, setButtonLoading } from '../../utils/ui.js';
@@ -53,7 +53,8 @@ export class ComprasModule {
 
     async listar() {
         await this.carregar();
-        await this.app.fornecedores.carregar();
+        // Presume que app.fornecedores e app.produtos existem e têm o método carregar()
+        await this.app.fornecedores.carregar(); 
         await this.app.produtos.carregar();
         
         this.app.pagination.setup(this.compras, 10);
@@ -87,10 +88,16 @@ export class ComprasModule {
                 ${compra.frete ? `<p><strong>Frete:</strong> R$ ${compra.frete.toFixed(2)}</p>` : ''}
                 ${compra.usuario_nome ? `<p><strong>Registrado por:</strong> ${compra.usuario_nome}</p>` : ''}
                 ${compra.observacoes ? `<p><strong>Observações:</strong> ${compra.observacoes}</p>` : ''}
-                <button onclick="app.compras.verDetalhes(${compra.id})" style="margin-top: 10px;">📋 Ver Detalhes</button>
-                <button onclick="app.compras.gerarPDF(${compra.id})" style="margin-top: 10px; background: #2196F3;">📄 Gerar PDF</button>
-                <button onclick="app.compras.excluir(${compra.id})" style="margin-top: 10px; background: #f44336;">🗑️ Excluir</button>
+                <button class="btn-detalhes" data-id="${compra.id}" style="margin-top: 10px;">📋 Ver Detalhes</button>
+                <button class="btn-pdf" data-id="${compra.id}" style="margin-top: 10px; background: #2196F3;">📄 Gerar PDF</button>
+                <button class="btn-excluir" data-id="${compra.id}" style="margin-top: 10px; background: #f44336;">🗑️ Excluir</button>
             `;
+            
+            // Refatoração de Eventos: Adiciona listeners via JS
+            div.querySelector('.btn-detalhes').addEventListener('click', () => this.verDetalhes(compra.id));
+            div.querySelector('.btn-pdf').addEventListener('click', () => this.gerarPDF(compra.id));
+            div.querySelector('.btn-excluir').addEventListener('click', () => this.excluir(compra.id));
+
             lista.appendChild(div);
         });
 
@@ -101,15 +108,16 @@ export class ComprasModule {
         const selectOriginal = document.getElementById('compraFornecedor');
         if (!selectOriginal) return;
 
+        // Cria e substitui o container customizado
         const container = document.createElement('div');
         container.id = 'compraFornecedorContainer';
         selectOriginal.parentNode.replaceChild(container, selectOriginal);
 
-        const fornecedoresAtivos = this.app.fornecedores.getFornecedoresAtivos();
+        const fornecedoresAtivos = this.app.fornecedores.getFornecedoresAtivos() || [];
 
         container.innerHTML = `
             <div class="select-pesquisavel">
-                <div class="select-pesquisavel-header" onclick="app.compras.toggleFornecedor()">
+                <div class="select-pesquisavel-header" id="headerFornecedor" onclick="app.compras.toggleFornecedor()">
                     <span id="fornecedorSelecionadoText">Selecione um fornecedor</span>
                     <span class="select-arrow">▼</span>
                 </div>
@@ -127,9 +135,9 @@ export class ComprasModule {
                     <div class="select-pesquisavel-list" id="listaFornecedores">
                         ${fornecedoresAtivos.map(f => `
                             <div class="select-pesquisavel-item" 
-                                 data-id="${f.id}" 
-                                 data-nome="${f.nome}"
-                                 onclick="app.compras.selecionarFornecedor(${f.id}, '${f.nome.replace(/'/g, "\\'")}')">
+                                data-id="${f.id}" 
+                                data-nome="${f.nome}"
+                                onclick="app.compras.selecionarFornecedor(${f.id}, '${f.nome.replace(/'/g, "\\'")}')">
                                 <strong>${f.nome}</strong>
                                 ${f.contato ? `<small>${f.contato}</small>` : ''}
                             </div>
@@ -227,7 +235,7 @@ export class ComprasModule {
                 `).join('')}
             </div>
             <button onclick="app.compras.adicionarProdutosSelecionados()" class="btn-primary" 
-                    style="margin-top: 15px; width: 100%;">
+                    style="margin-top: 15px; width: 100%;" id="btnAddProdutosCompra">
                 ➕ Adicionar Produtos Selecionados
             </button>
         `;
@@ -266,27 +274,51 @@ export class ComprasModule {
 
         let erros = [];
         let adicionados = 0;
+        let produtosParaAdicionar = []; // Usaremos esta lista para limpar os campos APENAS se a validação for OK.
 
+        // Validação e Coleta de Dados
         this.produtosSelecionados.forEach(produtoId => {
             const quantidade = parseInt(document.getElementById(`qtd_${produtoId}`).value);
             const valorCusto = parseFloat(document.getElementById(`custo_${produtoId}`).value);
             const valorVenda = parseFloat(document.getElementById(`venda_${produtoId}`).value);
+            const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
+            
+            if (!produto) return;
 
-            if (!quantidade || !valorCusto || !valorVenda) {
-                const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
-                erros.push(`${produto.nome}: preencha todos os campos`);
+            if (isNaN(quantidade) || isNaN(valorCusto) || isNaN(valorVenda)) {
+                erros.push(`${produto.nome}: preencha todos os campos.`);
                 return;
             }
 
             if (quantidade <= 0 || valorCusto <= 0 || valorVenda <= 0) {
-                const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
-                erros.push(`${produto.nome}: valores devem ser maiores que zero`);
+                erros.push(`${produto.nome}: valores (Qtd, Custo, Venda) devem ser maiores que zero.`);
                 return;
             }
+            
+            // MELHORIA 1: Validação de Venda Abaixo do Custo
+            if (valorCusto > valorVenda) {
+                 erros.push(`${produto.nome}: Preço de Venda (R$ ${valorVenda.toFixed(2)}) é menor que o Custo (R$ ${valorCusto.toFixed(2)}). Ajuste.`);
+                 return;
+            }
 
-            const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
-            if (!produto) return;
+            produtosParaAdicionar.push({
+                produtoId,
+                quantidade,
+                valorCusto,
+                valorVenda,
+                produtoNome: produto.nome
+            });
+        });
 
+        if (erros.length > 0) {
+            // Se houver erros, mostre o toast e não processe nenhum item
+            mostrarToast(`⚠️ Erro de validação:\n${erros.join('\n')}`, 'error');
+            return;
+        }
+
+        // Adição ao Carrinho e Limpeza da UI
+        produtosParaAdicionar.forEach(({ produtoId, quantidade, valorCusto, valorVenda, produtoNome }) => {
+            const total_custo = quantidade * valorCusto;
             const itemExistente = this.carrinho.find(item => item.produto_id === produtoId);
             
             if (itemExistente) {
@@ -295,14 +327,15 @@ export class ComprasModule {
             } else {
                 this.carrinho.push({
                     produto_id: produtoId,
-                    produto_nome: produto.nome,
+                    produto_nome: produtoNome,
                     quantidade: quantidade,
                     valor_custo: valorCusto,
                     valor_venda: valorVenda,
-                    total_custo: quantidade * valorCusto
+                    total_custo: total_custo
                 });
             }
 
+            // Limpa a UI dos itens processados
             document.getElementById(`prod_${produtoId}`).checked = false;
             document.getElementById(`campos_${produtoId}`).style.display = 'none';
             document.getElementById(`qtd_${produtoId}`).value = '1';
@@ -312,15 +345,14 @@ export class ComprasModule {
             adicionados++;
         });
 
+        // Limpa a lista de IDs selecionados após o processamento bem-sucedido
         this.produtosSelecionados = [];
-
-        if (erros.length > 0) {
-            mostrarToast(erros.join('\n'), 'warning');
-        }
 
         if (adicionados > 0) {
             this.atualizarCarrinho();
             mostrarToast(`${adicionados} produto(s) adicionado(s)!`, 'sucesso');
+            // Opcional: Rolar a lista de produtos múltiplos para o topo para nova seleção
+            document.getElementById('produtosMultiplosLista').scrollTop = 0; 
         }
     }
 
@@ -329,13 +361,15 @@ export class ComprasModule {
         if (index !== -1) {
             this.carrinho.splice(index, 1);
             this.atualizarCarrinho();
+            mostrarToast('Item removido do carrinho.', 'info');
         }
     }
 
     atualizarFrete() {
         const inputFrete = document.getElementById('compraFrete');
         if (inputFrete) {
-            this.valorFrete = parseFloat(inputFrete.value) || 0;
+            // Usa o valor, garante que NaN vira 0
+            this.valorFrete = parseFloat(inputFrete.value) || 0; 
         }
         this.atualizarCarrinho();
     }
@@ -358,7 +392,8 @@ export class ComprasModule {
         this.carrinho.forEach(item => {
             subtotal += item.total_custo;
             
-            const margem = ((item.valor_venda - item.valor_custo) / item.valor_custo * 100).toFixed(1);
+            const margem = item.valor_custo > 0 ? ((item.valor_venda - item.valor_custo) / item.valor_custo * 100).toFixed(1) : 0;
+            const corMargem = item.valor_custo > 0 && item.valor_venda >= item.valor_custo ? 'green' : (item.valor_custo > 0 ? 'red' : 'gray');
             
             const div = document.createElement('div');
             div.className = 'carrinho-item';
@@ -366,13 +401,16 @@ export class ComprasModule {
                 <div class="carrinho-item-info">
                     <h4>${item.produto_nome}</h4>
                     <p>Qtd: ${item.quantidade} | Custo: R$ ${item.valor_custo.toFixed(2)} | Venda: R$ ${item.valor_venda.toFixed(2)}</p>
-                    <small style="color: ${margem > 0 ? 'green' : 'red'};">Margem: ${margem}%</small>
+                    <small style="color: ${corMargem};">Margem: ${margem}%</small>
                 </div>
                 <div class="carrinho-item-acoes">
                     <span>R$ ${item.total_custo.toFixed(2)}</span>
-                    <button onclick="app.compras.removerItem(${item.produto_id})">🗑️</button>
+                    <button class="btn-remover-item" data-id="${item.produto_id}">🗑️</button>
                 </div>
             `;
+            
+            // Refatoração de Eventos
+            div.querySelector('.btn-remover-item').addEventListener('click', () => this.removerItem(item.produto_id));
             lista.appendChild(div);
         });
 
@@ -394,7 +432,7 @@ export class ComprasModule {
             return;
         }
 
-        setButtonLoading('finalizarCompra', true);
+        setButtonLoading('finalizarCompra', true, 'Finalizando...');
 
         try {
             const fornecedor = this.app.fornecedores.fornecedores.find(f => f.id === this.fornecedorSelecionado);
@@ -403,6 +441,7 @@ export class ComprasModule {
             const usuarioLogado = this.app.auth.getUsuarioLogado();
             const observacoes = document.getElementById('compraObservacoes')?.value.trim() || '';
 
+            // 1. Inserir Compra Principal
             const { data: compraData, error: compraError } = await supabase.from('compras').insert([{
                 fornecedor_id: this.fornecedorSelecionado,
                 fornecedor_nome: fornecedor.nome,
@@ -418,6 +457,7 @@ export class ComprasModule {
 
             const compraId = compraData[0].id;
 
+            // 2. Inserir Itens da Compra
             const itensParaInserir = this.carrinho.map(item => ({
                 compra_id: compraId,
                 produto_id: item.produto_id,
@@ -431,19 +471,24 @@ export class ComprasModule {
             const { error: itensError } = await supabase.from('compras_itens').insert(itensParaInserir);
             if (itensError) throw itensError;
 
+            // 3. Atualizar Estoque e Preços dos Produtos
             for (const item of this.carrinho) {
                 const produto = this.app.produtos.getProdutos().find(p => p.id === item.produto_id);
                 if (produto) {
                     const novoEstoque = produto.estoque + item.quantidade;
                     
-                    await supabase.from('produto').update({
-                        estoque: novoEstoque,
-                        custo_unitario: item.valor_custo,
-                        preco: item.valor_venda
-                    }).eq('id', produto.id);
+                    // Otimização: Só atualiza se for diferente para evitar triggers desnecessários
+                    if (novoEstoque !== produto.estoque || item.valor_custo !== produto.custo_unitario || item.valor_venda !== produto.preco) {
+                        await supabase.from('produto').update({
+                            estoque: novoEstoque,
+                            custo_unitario: item.valor_custo,
+                            preco: item.valor_venda
+                        }).eq('id', produto.id);
+                    }
                 }
             }
 
+            // 4. Limpar Estado e UI (melhor organização)
             this.carrinho = [];
             this.fornecedorSelecionado = null;
             this.valorFrete = 0;
@@ -451,21 +496,17 @@ export class ComprasModule {
             
             this.atualizarCarrinho();
             document.getElementById('fornecedorSelecionadoText').textContent = 'Selecione um fornecedor';
-            if (document.getElementById('compraObservacoes')) {
-                document.getElementById('compraObservacoes').value = '';
-            }
-            if (document.getElementById('compraFrete')) {
-                document.getElementById('compraFrete').value = '0';
-            }
+            document.getElementById('compraObservacoes').value = '';
+            document.getElementById('compraFrete').value = '0';
 
-            document.querySelectorAll('.select-pesquisavel-item').forEach(i => {
-                i.classList.remove('selected');
-            });
+            // Remove a classe 'selected' do fornecedor
+            document.querySelectorAll('.select-pesquisavel-item').forEach(i => i.classList.remove('selected'));
 
-            await this.app.produtos.carregar();
-            this.renderizarListaProdutosMultiplos();
-            await this.carregar();
-            this.renderizar();
+            // 5. Recarregar Listas de Dados
+            await this.app.produtos.carregar(); // Recarrega produtos para ter o novo estoque
+            this.renderizarListaProdutosMultiplos(); // Atualiza a lista múltipla
+            await this.carregar(); // Recarrega a lista de compras
+            this.renderizar(); // Renderiza a lista de compras atualizada
 
             mostrarToast('Compra registrada com sucesso!', 'sucesso');
             
@@ -476,7 +517,7 @@ export class ComprasModule {
             console.error('❌ Erro ao registrar compra:', error);
             mostrarToast(handleSupabaseError(error), 'error');
         } finally {
-            setButtonLoading('finalizarCompra', false);
+            setButtonLoading('finalizarCompra', false, '✅ Finalizar Compra');
         }
     }
 
@@ -495,7 +536,7 @@ export class ComprasModule {
         mensagem += `\n────────────────────────\nITENS:\n────────────────────────\n\n`;
 
         itens.forEach((item, index) => {
-            const margem = ((item.valor_venda - item.valor_custo) / item.valor_custo * 100).toFixed(1);
+            const margem = item.valor_custo > 0 ? ((item.valor_venda - item.valor_custo) / item.valor_custo * 100).toFixed(1) : 'N/A';
             mensagem += `${index + 1}. ${item.produto_nome}\n`;
             mensagem += `   Qtd: ${item.quantidade} | Custo: R$ ${item.valor_custo.toFixed(2)} | Venda: R$ ${item.valor_venda.toFixed(2)}\n`;
             mensagem += `   Margem: ${margem}% | Total: R$ ${item.total_custo.toFixed(2)}\n\n`;
@@ -513,19 +554,23 @@ export class ComprasModule {
         try {
             const itens = await this.carregarItens(compraId);
 
+            // 1. Reverter Estoque
             for (const item of itens) {
                 const produto = this.app.produtos.getProdutos().find(p => p.id === item.produto_id);
                 if (produto) {
-                    const novoEstoque = Math.max(0, produto.estoque - item.quantidade);
+                    // MELHORIA 2: Garante que o estoque não fique negativo
+                    const novoEstoque = Math.max(0, produto.estoque - item.quantidade); 
                     await supabase.from('produto').update({
                         estoque: novoEstoque
                     }).eq('id', produto.id);
                 }
             }
 
+            // 2. Excluir Compra
             const { error } = await supabase.from('compras').delete().eq('id', compraId);
             if (error) throw error;
 
+            // 3. Atualizar Listas
             await this.app.produtos.carregar();
             await this.listar();
             mostrarToast('Compra excluída e estoque ajustado!', 'sucesso');
@@ -535,10 +580,17 @@ export class ComprasModule {
         }
     }
 
+    // Nota: Requer a inclusão da biblioteca jsPDF no projeto (ex: <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>)
     async gerarPDF(compraId) {
         const compra = this.compras.find(c => c.id === compraId);
         if (!compra) {
             mostrarToast('Compra não encontrada!', 'error');
+            return;
+        }
+        
+        // Verifica se jsPDF está disponível
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            mostrarToast('Biblioteca jsPDF não carregada. Não é possível gerar o PDF.', 'error');
             return;
         }
 
@@ -578,12 +630,25 @@ export class ComprasModule {
                 doc.text(`Solicitante: ${compra.usuario_nome}`, 20, y);
             }
             
+            // MELHORIA 4: Tratamento de quebra de linha para observações
             if (compra.observacoes) {
                 y += 6;
-                doc.text(`Observações: ${compra.observacoes}`, 20, y);
+                doc.setFont(undefined, 'bold');
+                doc.text(`Observações:`, 20, y);
+                doc.setFont(undefined, 'normal');
+                
+                const obsText = doc.splitTextToSize(compra.observacoes, 150); // Divide em linhas com 150mm de largura
+                y += 4;
+                doc.text(obsText, 20, y);
+                y += obsText.length * 5; // Avança o Y conforme o número de linhas
             }
             
-            y += 15;
+            y += 5; // Espaçamento após info
+
+            if (y > 250) { // Se o cabeçalho ficou muito grande, passa para a próxima página
+                doc.addPage();
+                y = 20;
+            }
             
             doc.setDrawColor(200, 200, 200);
             doc.line(20, y, 190, y);
@@ -615,6 +680,17 @@ export class ComprasModule {
                 if (y > 250) {
                     doc.addPage();
                     y = 20;
+                    // Repete o cabeçalho de itens na nova página
+                    doc.setFontSize(9);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Produto', 20, y);
+                    doc.text('Qtd', 110, y);
+                    doc.text('Custo Un.', 135, y);
+                    doc.text('Total', 170, y, { align: 'right' });
+                    y += 2;
+                    doc.line(20, y, 190, y);
+                    y += 6;
+                    doc.setFont(undefined, 'normal');
                 }
                 
                 const nomeProduto = item.produto_nome.length > 45 
@@ -630,7 +706,7 @@ export class ComprasModule {
             });
             
             y += 4;
-            doc.line(20, y, 190, y);
+            doc.line(110, y, 190, y); // Linha apenas abaixo dos itens
             y += 8;
             
             doc.setFontSize(10);
@@ -646,7 +722,7 @@ export class ComprasModule {
             
             y += 10;
             doc.setDrawColor(100, 100, 100);
-            doc.line(110, y, 190, y);
+            doc.line(110, y, 190, y); // Linha dupla
             
             y += 8;
             doc.setFontSize(12);
@@ -654,6 +730,7 @@ export class ComprasModule {
             doc.text('TOTAL DO PEDIDO:', 110, y);
             doc.text(`R$ ${compra.valor_total.toFixed(2)}`, 170, y, { align: 'right' });
             
+            // Números de página
             const pageCount = doc.internal.getNumberOfPages();
             doc.setFontSize(8);
             doc.setFont(undefined, 'normal');
@@ -669,8 +746,7 @@ export class ComprasModule {
             mostrarToast('PDF gerado com sucesso!', 'sucesso');
         } catch (error) {
             console.error('❌ Erro ao gerar PDF:', error);
-            mostrarToast('Erro ao gerar PDF. Verifique se o jsPDF está carregado.', 'error');
+            mostrarToast('Erro ao gerar PDF. Verifique se o jsPDF está carregado e se a estrutura da página está correta.', 'error');
         }
     }
 }
-
