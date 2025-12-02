@@ -1682,6 +1682,64 @@ input, select, textarea, button {
         font-size: 0.8em;
     }
 }
+/* ==================== ESTILOS PARA CAMPO DE FRETE ==================== */
+
+/* Estilo específico para o campo de frete */
+#compraFrete {
+    width: 120px !important;
+    padding: 8px 12px !important;
+    border: 2px solid #C8A8D8 !important;
+    border-radius: 6px !important;
+    font-size: 1em !important;
+    font-weight: 600 !important;
+    text-align: right !important;
+    background: #fff !important;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+    color: #333 !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+}
+
+#compraFrete:focus {
+    outline: none !important;
+    border-color: #9370DB !important;
+    box-shadow: 0 0 0 3px rgba(200, 168, 216, 0.3) !important;
+}
+
+#compraFrete:hover {
+    border-color: #9370DB !important;
+}
+
+/* Container do resumo de compra com frete destacado */
+.resumo-compra-frete {
+    background: #f9f9f9;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+/* Linha do frete no resumo */
+#freteCompra, #subtotalCompra, #totalCompra {
+    font-weight: bold !important;
+    color: #C8A8D8 !important;
+    font-size: 1.1em !important;
+}
+
+/* Label do frete */
+label[for="compraFrete"] {
+    font-weight: 600 !important;
+    color: #5D4E37 !important;
+    margin-right: 10px !important;
+}
+
+/* RESPONSIVO MOBILE */
+@media (max-width: 768px) {
+    #compraFrete {
+        width: 100% !important;
+        max-width: 200px !important;
+        font-size: 16px !important; /* Previne zoom no iOS */
+    }
+}
 
 /* ACESSIBILIDADE */
 .produto-multiplo-checkbox input[type="checkbox"]:focus {
@@ -1694,4 +1752,5 @@ input, select, textarea, button {
     outline-offset: 2px;
     border-radius: 4px;
 }
+
 
