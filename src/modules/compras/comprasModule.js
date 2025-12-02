@@ -1,9 +1,7 @@
-// ==================== MÓDULO COMPRAS - VERSÃO MELHORADA ====================
+// ==================== MÓDULO COMPRAS - VERSÃO CORRIGIDA ====================
 
 import { supabase } from '../../config/supabase.js';
-import { mostrarToast, setButtonLoading, showModalConfirmation } from '../../utils/ui.js';
-import { handleSupabaseError } from '../../utils/security.js';
-import { formatarDataHoraCorreta, formatarMoeda, validarNumeroPositivo, sanitizarHTML } from '../../utils/formatters.js';
+import { mostrarToast, setButtonLoading } from '../../utils/ui.js';
 
 export class ComprasModule {
     constructor(app) {
@@ -18,6 +16,69 @@ export class ComprasModule {
             timestamp: null
         };
         this.cacheTtl = 30000; // 30 segundos
+        
+        // Inicializar globalmente para acesso via onclick
+        window.app = window.app || {};
+        window.app.compras = this;
+    }
+
+    // ==================== UTILITÁRIOS LOCAIS ====================
+    formatarMoeda(valor) {
+        if (typeof valor !== 'number') {
+            valor = parseFloat(valor) || 0;
+        }
+        return valor.toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    sanitizarHTML(texto) {
+        if (typeof texto !== 'string') return texto;
+        
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#x27;'
+        };
+        
+        return texto.replace(/[&<>"']/g, (m) => map[m]);
+    }
+
+    formatarDataHoraCorreta(dataString) {
+        try {
+            const data = new Date(dataString);
+            return data.toLocaleString('pt-BR');
+        } catch (e) {
+            return dataString;
+        }
+    }
+
+    validarNumeroPositivo(valor, campo = '') {
+        const num = parseFloat(valor);
+        if (isNaN(num) || num < 0) {
+            mostrarToast(`${campo} deve ser um número positivo`, 'warning');
+            return false;
+        }
+        return true;
+    }
+
+    handleSupabaseError(error) {
+        console.error('Erro Supabase:', error);
+        
+        if (error.code === '23505') {
+            return 'Registro duplicado!';
+        } else if (error.code === '23503') {
+            return 'Não é possível excluir - existem registros relacionados!';
+        } else if (error.message.includes('NetworkError')) {
+            return 'Erro de conexão. Verifique sua internet.';
+        } else if (error.message.includes('JWT')) {
+            return 'Sessão expirada. Faça login novamente.';
+        }
+        
+        return error.message || 'Erro ao processar operação';
     }
 
     // ==================== CACHE ====================
@@ -40,19 +101,22 @@ export class ComprasModule {
 
             const { data, error } = await supabase
                 .from('compras')
-                .select(`
-                    *,
-                    compras_itens(*)
-                `)
+                .select('*')
                 .order('data', { ascending: false });
             
             if (error) throw error;
             
             this.compras = (data || []).map(compra => ({
                 ...compra,
-                data_exibicao: formatarDataHoraCorreta(compra.data),
-                total_itens: compra.compras_itens?.length || 0
+                data_exibicao: this.formatarDataHoraCorreta(compra.data),
+                total_itens: 0 // Será carregado separadamente
             }));
+
+            // Carregar contagem de itens para cada compra
+            for (const compra of this.compras) {
+                const itens = await this.carregarItens(compra.id);
+                compra.total_itens = itens.length;
+            }
 
             // Atualizar cache
             this.cacheCompras.data = this.compras;
@@ -61,7 +125,7 @@ export class ComprasModule {
             return this.compras;
         } catch (error) {
             console.error('❌ Erro ao carregar compras:', error);
-            mostrarToast(handleSupabaseError(error), 'error');
+            mostrarToast(this.handleSupabaseError(error), 'error');
             return [];
         }
     }
@@ -77,7 +141,6 @@ export class ComprasModule {
             return data || [];
         } catch (error) {
             console.error('❌ Erro ao carregar itens da compra:', error);
-            mostrarToast('Erro ao carregar itens da compra', 'error');
             return [];
         }
     }
@@ -126,8 +189,10 @@ export class ComprasModule {
 
         const problemas = [];
         
-        compra.compras_itens?.forEach(item => {
-            const produto = this.app.produtos.getProdutos().find(p => p.id === item.produto_id);
+        // Carregar itens da compra
+        const itens = compra.compras_itens || [];
+        itens.forEach(item => {
+            const produto = this.app.produtos?.getProdutos?.().find(p => p.id === item.produto_id);
             if (produto && item.quantidade > produto.estoque) {
                 problemas.push({
                     produto: item.produto_nome,
@@ -148,14 +213,20 @@ export class ComprasModule {
     // ==================== UI - LISTAGEM ====================
     async listar() {
         try {
+            // Carregar dados em paralelo
             await Promise.all([
                 this.carregar(false),
-                this.app.fornecedores.carregar(),
-                this.app.produtos.carregar()
-            ]);
+                this.app.fornecedores?.carregar?.(),
+                this.app.produtos?.carregar?.()
+            ].filter(p => p !== undefined));
             
-            this.app.pagination.setup(this.compras, 10);
-            this.renderizarLista();
+            if (this.app.pagination) {
+                this.app.pagination.setup(this.compras, 10);
+                this.renderizarLista();
+            } else {
+                this.renderizarListaSemPaginacao();
+            }
+            
             this.inicializarSelectFornecedor();
             this.renderizarListaProdutosMultiplos();
         } catch (error) {
@@ -164,7 +235,71 @@ export class ComprasModule {
         }
     }
 
+    renderizarListaSemPaginacao() {
+        const lista = document.getElementById('listaCompras');
+        if (!lista) return;
+
+        if (this.compras.length === 0) {
+            lista.innerHTML = `
+                <div class="empty-state">
+                    <i class="empty-icon">📦</i>
+                    <p>Nenhuma compra registrada</p>
+                </div>
+            `;
+            return;
+        }
+
+        lista.innerHTML = '';
+        this.compras.forEach(compra => {
+            const div = document.createElement('div');
+            div.className = 'compra-item card';
+            div.setAttribute('data-compra-id', compra.id);
+            
+            const subtotal = compra.valor_total - (compra.frete || 0);
+            
+            div.innerHTML = `
+                <div class="compra-item-header">
+                    <div class="compra-info">
+                        <strong class="compra-data">📦 ${compra.data_exibicao}</strong>
+                        <span class="compra-status">${compra.total_itens || 0} itens</span>
+                    </div>
+                    <div class="compra-valores">
+                        <div class="valor-total">R$ ${this.formatarMoeda(compra.valor_total)}</div>
+                        ${compra.frete ? `<small class="valor-frete">Frete: R$ ${this.formatarMoeda(compra.frete)}</small>` : ''}
+                    </div>
+                </div>
+                
+                <div class="compra-item-body">
+                    <p><strong>Fornecedor:</strong> ${this.sanitizarHTML(compra.fornecedor_nome)}</p>
+                    ${compra.usuario_nome ? `<p><strong>Registrado por:</strong> ${this.sanitizarHTML(compra.usuario_nome)}</p>` : ''}
+                    ${compra.observacoes ? `<p><strong>Observações:</strong> ${this.sanitizarHTML(compra.observacoes)}</p>` : ''}
+                    
+                    <div class="compra-item-footer">
+                        <button onclick="app.compras.verDetalhes(${compra.id})" 
+                                class="btn-secondary">
+                            📋 Detalhes
+                        </button>
+                        <button onclick="app.compras.gerarPDF(${compra.id})" 
+                                class="btn-info">
+                            📄 PDF
+                        </button>
+                        <button onclick="app.compras.excluir(${compra.id})" 
+                                class="btn-danger">
+                            🗑️ Excluir
+                        </button>
+                    </div>
+                </div>
+            `;
+            lista.appendChild(div);
+        });
+    }
+
     renderizarLista() {
+        if (!this.app.pagination) {
+            this.renderizarListaSemPaginacao();
+            return;
+        }
+
         const lista = document.getElementById('listaCompras');
         if (!lista) return;
 
@@ -173,9 +308,6 @@ export class ComprasModule {
                 <div class="empty-state">
                     <i class="empty-icon">📦</i>
                     <p>Nenhuma compra registrada</p>
-                    <button onclick="app.compras.novaCompra()" class="btn-primary">
-                        ➕ Nova Compra
-                    </button>
                 </div>
             `;
             this.app.pagination.renderPaginationControls('paginacaoCompras', this.renderizarLista.bind(this));
@@ -194,33 +326,30 @@ export class ComprasModule {
                 <div class="compra-item-header">
                     <div class="compra-info">
                         <strong class="compra-data">📦 ${compra.data_exibicao}</strong>
-                        <span class="compra-status">${compra.total_itens} itens</span>
+                        <span class="compra-status">${compra.total_itens || 0} itens</span>
                     </div>
                     <div class="compra-valores">
-                        <div class="valor-total">R$ ${formatarMoeda(compra.valor_total)}</div>
-                        ${compra.frete ? `<small class="valor-frete">Frete: R$ ${formatarMoeda(compra.frete)}</small>` : ''}
+                        <div class="valor-total">R$ ${this.formatarMoeda(compra.valor_total)}</div>
+                        ${compra.frete ? `<small class="valor-frete">Frete: R$ ${this.formatarMoeda(compra.frete)}</small>` : ''}
                     </div>
                 </div>
                 
                 <div class="compra-item-body">
-                    <p><strong>Fornecedor:</strong> ${sanitizarHTML(compra.fornecedor_nome)}</p>
-                    ${compra.usuario_nome ? `<p><strong>Registrado por:</strong> ${sanitizarHTML(compra.usuario_nome)}</p>` : ''}
-                    ${compra.observacoes ? `<p><strong>Observações:</strong> ${sanitizarHTML(compra.observacoes)}</p>` : ''}
+                    <p><strong>Fornecedor:</strong> ${this.sanitizarHTML(compra.fornecedor_nome)}</p>
+                    ${compra.usuario_nome ? `<p><strong>Registrado por:</strong> ${this.sanitizarHTML(compra.usuario_nome)}</p>` : ''}
+                    ${compra.observacoes ? `<p><strong>Observações:</strong> ${this.sanitizarHTML(compra.observacoes)}</p>` : ''}
                     
                     <div class="compra-item-footer">
                         <button onclick="app.compras.verDetalhes(${compra.id})" 
-                                class="btn-secondary" 
-                                aria-label="Ver detalhes da compra">
+                                class="btn-secondary">
                             📋 Detalhes
                         </button>
                         <button onclick="app.compras.gerarPDF(${compra.id})" 
-                                class="btn-info"
-                                aria-label="Gerar PDF da compra">
+                                class="btn-info">
                             📄 PDF
                         </button>
                         <button onclick="app.compras.excluir(${compra.id})" 
-                                class="btn-danger"
-                                aria-label="Excluir compra">
+                                class="btn-danger">
                             🗑️ Excluir
                         </button>
                     </div>
@@ -242,21 +371,18 @@ export class ComprasModule {
         container.id = 'compraFornecedorContainer';
         selectOriginal.parentNode.replaceChild(container, selectOriginal);
 
-        const fornecedoresAtivos = this.app.fornecedores.getFornecedoresAtivos();
+        const fornecedoresAtivos = this.app.fornecedores?.getFornecedoresAtivos?.() || [];
 
         container.innerHTML = `
-            <div class="select-pesquisavel" role="combobox" aria-expanded="false" aria-haspopup="listbox">
+            <div class="select-pesquisavel">
                 <div class="select-pesquisavel-header" 
-                     onclick="app.compras.toggleFornecedorDropdown(event)"
-                     onkeydown="app.compras.handleFornecedorKeydown(event)"
-                     tabindex="0"
-                     aria-label="Selecionar fornecedor">
+                     onclick="app.compras.toggleFornecedorDropdown()"
+                     tabindex="0">
                     <span id="fornecedorSelecionadoText" class="placeholder">Selecione um fornecedor</span>
-                    <span class="select-arrow" aria-hidden="true">▼</span>
+                    <span class="select-arrow">▼</span>
                 </div>
                 <div class="select-pesquisavel-dropdown" 
                      id="selectFornecedorDropdown" 
-                     role="listbox"
                      style="display: none;">
                     <div class="select-pesquisavel-search">
                         <input 
@@ -265,73 +391,38 @@ export class ComprasModule {
                             placeholder="🔍 Pesquisar fornecedor..."
                             autocomplete="off"
                             oninput="app.compras.pesquisarFornecedor(this.value)"
-                            aria-label="Pesquisar fornecedor"
                         >
                     </div>
-                    <div class="select-pesquisavel-list" id="listaFornecedores" role="list">
+                    <div class="select-pesquisavel-list" id="listaFornecedores">
                         ${fornecedoresAtivos.map(f => `
                             <div class="select-pesquisavel-item" 
-                                 role="option"
                                  data-id="${f.id}"
-                                 data-nome="${sanitizarHTML(f.nome)}"
+                                 data-nome="${this.sanitizarHTML(f.nome)}"
                                  onclick="app.compras.selecionarFornecedor(${f.id})"
-                                 onkeydown="app.compras.handleFornecedorItemKeydown(event, ${f.id})"
                                  tabindex="-1">
-                                <strong>${sanitizarHTML(f.nome)}</strong>
-                                ${f.contato ? `<small>${sanitizarHTML(f.contato)}</small>` : ''}
+                                <strong>${this.sanitizarHTML(f.nome)}</strong>
+                                ${f.contato ? `<small>${this.sanitizarHTML(f.contato)}</small>` : ''}
                             </div>
                         `).join('')}
                     </div>
                 </div>
             </div>
-            <div id="fornecedorError" class="error-message" style="display: none;"></div>
         `;
     }
 
-    toggleFornecedorDropdown(event) {
-        event.stopPropagation();
+    toggleFornecedorDropdown() {
         const dropdown = document.getElementById('selectFornecedorDropdown');
-        const header = event.currentTarget;
-        const isExpanded = header.getAttribute('aria-expanded') === 'true';
+        if (!dropdown) return;
         
-        if (isExpanded) {
+        if (dropdown.style.display === 'block') {
             dropdown.style.display = 'none';
-            header.setAttribute('aria-expanded', 'false');
         } else {
             dropdown.style.display = 'block';
-            header.setAttribute('aria-expanded', 'true');
             setTimeout(() => {
-                document.getElementById('searchFornecedor')?.focus();
+                const searchInput = document.getElementById('searchFornecedor');
+                if (searchInput) searchInput.focus();
             }, 100);
         }
-    }
-
-    handleFornecedorKeydown(event) {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            this.toggleFornecedorDropdown(event);
-        } else if (event.key === 'Escape') {
-            this.fecharDropdownFornecedor();
-        }
-    }
-
-    handleFornecedorItemKeydown(event, fornecedorId) {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            this.selecionarFornecedor(fornecedorId);
-        }
-    }
-
-    fecharDropdownFornecedor() {
-        const dropdown = document.getElementById('selectFornecedorDropdown');
-        const header = document.querySelector('[aria-label="Selecionar fornecedor"]');
-        
-        dropdown.style.display = 'none';
-        header.setAttribute('aria-expanded', 'false');
-        document.getElementById('searchFornecedor').value = '';
-        
-        // Resetar pesquisa
-        this.pesquisarFornecedor('');
     }
 
     pesquisarFornecedor(termo) {
@@ -349,6 +440,11 @@ export class ComprasModule {
     }
 
     selecionarFornecedor(id) {
+        if (!this.app.fornecedores?.getFornecedorById) {
+            mostrarToast('Módulo de fornecedores não disponível', 'error');
+            return;
+        }
+
         const fornecedor = this.app.fornecedores.getFornecedorById(id);
         if (!fornecedor) {
             mostrarToast('Fornecedor não encontrado', 'warning');
@@ -364,22 +460,29 @@ export class ComprasModule {
         // Remover seleção anterior
         document.querySelectorAll('.select-pesquisavel-item').forEach(i => {
             i.classList.remove('selected');
-            i.setAttribute('aria-selected', 'false');
         });
         
         // Adicionar nova seleção
         const itemSelecionado = document.querySelector(`[data-id="${id}"]`);
         if (itemSelecionado) {
             itemSelecionado.classList.add('selected');
-            itemSelecionado.setAttribute('aria-selected', 'true');
             itemSelecionado.scrollIntoView({ block: 'nearest' });
         }
         
         // Fechar dropdown
         this.fecharDropdownFornecedor();
+    }
+
+    fecharDropdownFornecedor() {
+        const dropdown = document.getElementById('selectFornecedorDropdown');
+        if (!dropdown) return;
         
-        // Limpar erro
-        document.getElementById('fornecedorError').style.display = 'none';
+        dropdown.style.display = 'none';
+        const searchInput = document.getElementById('searchFornecedor');
+        if (searchInput) searchInput.value = '';
+        
+        // Resetar pesquisa
+        this.pesquisarFornecedor('');
     }
 
     // ==================== UI - PRODUTOS ====================
@@ -387,15 +490,12 @@ export class ComprasModule {
         const container = document.getElementById('listaProdutosMultiplos');
         if (!container) return;
 
-        const produtos = this.app.produtos.getProdutos();
+        const produtos = this.app.produtos?.getProdutos?.() || [];
         
         if (produtos.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <p>Nenhum produto cadastrado</p>
-                    <button onclick="app.produtos.novoProduto()" class="btn-secondary">
-                        ➕ Cadastrar Produto
-                    </button>
                 </div>
             `;
             return;
@@ -407,7 +507,6 @@ export class ComprasModule {
                        id="pesquisaProdutosCompra" 
                        placeholder="🔍 Pesquisar produtos..." 
                        oninput="app.compras.pesquisarProdutosMultiplos(this.value)"
-                       aria-label="Pesquisar produtos"
                        class="pesquisa-produto">
             </div>
             
@@ -415,25 +514,23 @@ export class ComprasModule {
                 <small>Selecione os produtos e preencha os valores</small>
             </div>
             
-            <div class="produtos-multiplos-lista" id="produtosMultiplosLista" role="list">
+            <div class="produtos-multiplos-lista" id="produtosMultiplosLista">
                 ${produtos.map(p => `
                     <div class="produto-multiplo-item" 
-                         data-produto-id="${p.id}"
-                         role="listitem">
+                         data-produto-id="${p.id}">
                         <div class="produto-multiplo-checkbox">
                             <input type="checkbox" 
                                    id="prod_${p.id}" 
                                    value="${p.id}"
-                                   onchange="app.compras.toggleProdutoSelecao(${p.id})"
-                                   aria-label="Selecionar produto ${sanitizarHTML(p.nome)}">
+                                   onchange="app.compras.toggleProdutoSelecao(${p.id})">
                         </div>
                         <div class="produto-multiplo-info">
                             <label for="prod_${p.id}">
-                                <strong>${sanitizarHTML(p.nome)}</strong>
+                                <strong>${this.sanitizarHTML(p.nome)}</strong>
                                 <small>
-                                    Estoque: ${p.estoque} | 
-                                    Custo: R$ ${formatarMoeda(p.custo_unitario || 0)} | 
-                                    Venda: R$ ${formatarMoeda(p.preco || 0)}
+                                    Estoque: ${p.estoque || 0} | 
+                                    Custo: R$ ${this.formatarMoeda(p.custo_unitario || 0)} | 
+                                    Venda: R$ ${this.formatarMoeda(p.preco || 0)}
                                 </small>
                             </label>
                         </div>
@@ -445,8 +542,7 @@ export class ComprasModule {
                                        min="1" 
                                        value="1" 
                                        class="input-pequeno"
-                                       onchange="app.compras.validarCampoProduto(${p.id}, 'quantidade')"
-                                       aria-label="Quantidade do produto ${sanitizarHTML(p.nome)}">
+                                       onchange="app.compras.validarCampoProduto(${p.id}, 'quantidade')">
                             </div>
                             <div class="input-group">
                                 <label for="custo_${p.id}" class="input-label">Custo (R$)</label>
@@ -454,10 +550,9 @@ export class ComprasModule {
                                        id="custo_${p.id}" 
                                        min="0.01" 
                                        step="0.01" 
-                                       value="${(p.custo_unitario || 0).toFixed(2)}"
+                                       value="${((p.custo_unitario || 0)).toFixed(2)}"
                                        class="input-pequeno"
-                                       onchange="app.compras.validarCampoProduto(${p.id}, 'custo')"
-                                       aria-label="Custo unitário do produto ${sanitizarHTML(p.nome)}">
+                                       onchange="app.compras.validarCampoProduto(${p.id}, 'custo')">
                             </div>
                             <div class="input-group">
                                 <label for="venda_${p.id}" class="input-label">Venda (R$)</label>
@@ -465,10 +560,9 @@ export class ComprasModule {
                                        id="venda_${p.id}" 
                                        min="0.01" 
                                        step="0.01" 
-                                       value="${(p.preco || 0).toFixed(2)}"
+                                       value="${((p.preco || 0)).toFixed(2)}"
                                        class="input-pequeno"
-                                       onchange="app.compras.validarCampoProduto(${p.id}, 'venda')"
-                                       aria-label="Preço de venda do produto ${sanitizarHTML(p.nome)}">
+                                       onchange="app.compras.validarCampoProduto(${p.id}, 'venda')">
                             </div>
                         </div>
                     </div>
@@ -487,6 +581,8 @@ export class ComprasModule {
 
     pesquisarProdutosMultiplos(termo) {
         const itens = document.querySelectorAll('.produto-multiplo-item');
+        if (!itens.length) return;
+        
         termo = termo.toLowerCase().trim();
         
         itens.forEach(item => {
@@ -496,25 +592,33 @@ export class ComprasModule {
     }
 
     validarCampoProduto(produtoId, campo) {
-        const valor = document.getElementById(`${campo}_${produtoId}`).value;
+        const input = document.getElementById(`${campo}_${produtoId}`);
+        if (!input) return false;
+        
+        const valor = input.value;
         const numero = parseFloat(valor);
         
         if (isNaN(numero) || numero <= 0) {
-            document.getElementById(`${campo}_${produtoId}`).classList.add('input-error');
+            input.classList.add('input-error');
             return false;
         }
         
-        document.getElementById(`${campo}_${produtoId}`).classList.remove('input-error');
+        input.classList.remove('input-error');
         
         // Validar se venda >= custo
         if (campo === 'venda' || campo === 'custo') {
-            const custo = parseFloat(document.getElementById(`custo_${produtoId}`).value);
-            const venda = parseFloat(document.getElementById(`venda_${produtoId}`).value);
+            const custoInput = document.getElementById(`custo_${produtoId}`);
+            const vendaInput = document.getElementById(`venda_${produtoId}`);
             
-            if (venda < custo) {
-                document.getElementById(`venda_${produtoId}`).classList.add('input-error');
-                mostrarToast('Preço de venda não pode ser menor que o custo', 'warning', 3000);
-                return false;
+            if (custoInput && vendaInput) {
+                const custo = parseFloat(custoInput.value);
+                const venda = parseFloat(vendaInput.value);
+                
+                if (venda < custo) {
+                    vendaInput.classList.add('input-error');
+                    mostrarToast('Preço de venda não pode ser menor que o custo', 'warning', 3000);
+                    return false;
+                }
             }
         }
         
@@ -524,6 +628,8 @@ export class ComprasModule {
     toggleProdutoSelecao(produtoId) {
         const checkbox = document.getElementById(`prod_${produtoId}`);
         const campos = document.getElementById(`campos_${produtoId}`);
+        
+        if (!checkbox || !campos) return;
         
         if (checkbox.checked) {
             campos.style.display = 'flex';
@@ -559,9 +665,18 @@ export class ComprasModule {
         const adicionados = [];
 
         this.produtosSelecionados.forEach(produtoId => {
-            const quantidade = parseFloat(document.getElementById(`qtd_${produtoId}`).value);
-            const valorCusto = parseFloat(document.getElementById(`custo_${produtoId}`).value);
-            const valorVenda = parseFloat(document.getElementById(`venda_${produtoId}`).value);
+            const quantidadeInput = document.getElementById(`qtd_${produtoId}`);
+            const custoInput = document.getElementById(`custo_${produtoId}`);
+            const vendaInput = document.getElementById(`venda_${produtoId}`);
+
+            if (!quantidadeInput || !custoInput || !vendaInput) {
+                erros.push('Campos não encontrados');
+                return;
+            }
+
+            const quantidade = parseFloat(quantidadeInput.value);
+            const valorCusto = parseFloat(custoInput.value);
+            const valorVenda = parseFloat(vendaInput.value);
 
             // Validações
             if (!quantidade || quantidade <= 0) {
@@ -584,7 +699,8 @@ export class ComprasModule {
                 return;
             }
 
-            const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
+            const produtos = this.app.produtos?.getProdutos?.() || [];
+            const produto = produtos.find(p => p.id === produtoId);
             if (!produto) {
                 erros.push('Produto não encontrado');
                 return;
@@ -610,11 +726,15 @@ export class ComprasModule {
             }
 
             // Resetar campos
-            document.getElementById(`prod_${produtoId}`).checked = false;
-            document.getElementById(`campos_${produtoId}`).style.display = 'none';
-            document.getElementById(`qtd_${produtoId}`).value = '1';
-            document.getElementById(`custo_${produtoId}`).value = (produto.custo_unitario || 0).toFixed(2);
-            document.getElementById(`venda_${produtoId}`).value = (produto.preco || 0).toFixed(2);
+            const checkbox = document.getElementById(`prod_${produtoId}`);
+            if (checkbox) checkbox.checked = false;
+            
+            const campos = document.getElementById(`campos_${produtoId}`);
+            if (campos) campos.style.display = 'none';
+            
+            quantidadeInput.value = '1';
+            custoInput.value = (produto.custo_unitario || 0).toFixed(2);
+            vendaInput.value = (produto.preco || 0).toFixed(2);
             
             adicionados.push(produto.nome);
         });
@@ -645,7 +765,7 @@ export class ComprasModule {
         const item = this.carrinho.find(item => item.produto_id === produtoId);
         if (!item || novaQuantidade <= 0) return;
         
-        item.quantidade = novaQuantidade;
+        item.quantidade = parseFloat(novaQuantidade);
         item.total_custo = item.quantidade * item.valor_custo;
         item.total_venda = item.quantidade * item.valor_venda;
         this.atualizarCarrinho();
@@ -699,10 +819,9 @@ export class ComprasModule {
             div.className = 'carrinho-item card';
             div.innerHTML = `
                 <div class="carrinho-item-header">
-                    <h4>${sanitizarHTML(item.produto_nome)}</h4>
+                    <h4>${this.sanitizarHTML(item.produto_nome)}</h4>
                     <button onclick="app.compras.removerItem(${item.produto_id})" 
-                            class="btn-icon btn-danger"
-                            aria-label="Remover ${sanitizarHTML(item.produto_nome)} do carrinho">
+                            class="btn-icon btn-danger">
                         🗑️
                     </button>
                 </div>
@@ -719,11 +838,11 @@ export class ComprasModule {
                         </div>
                         <div class="item-info-col">
                             <label>Custo Unitário:</label>
-                            <span class="valor">R$ ${formatarMoeda(item.valor_custo)}</span>
+                            <span class="valor">R$ ${this.formatarMoeda(item.valor_custo)}</span>
                         </div>
                         <div class="item-info-col">
                             <label>Venda Unitária:</label>
-                            <span class="valor">R$ ${formatarMoeda(item.valor_venda)}</span>
+                            <span class="valor">R$ ${this.formatarMoeda(item.valor_venda)}</span>
                         </div>
                     </div>
                     
@@ -740,11 +859,11 @@ export class ComprasModule {
                 <div class="carrinho-item-footer">
                     <div class="item-total">
                         <strong>Total Custo:</strong>
-                        <span class="valor-total">R$ ${formatarMoeda(item.total_custo)}</span>
+                        <span class="valor-total">R$ ${this.formatarMoeda(item.total_custo)}</span>
                     </div>
                     <div class="item-total">
                         <strong>Total Venda:</strong>
-                        <span class="valor-total valor-venda">R$ ${formatarMoeda(item.total_venda)}</span>
+                        <span class="valor-total valor-venda">R$ ${this.formatarMoeda(item.total_venda)}</span>
                     </div>
                 </div>
             `;
@@ -762,20 +881,13 @@ export class ComprasModule {
         const elementos = {
             'subtotalCompra': subtotal,
             'freteCompra': this.valorFrete,
-            'totalCompra': totalCompra,
-            'totalVendaCompra': subtotalVenda,
-            'margemTotalCompra': margemTotal
+            'totalCompra': totalCompra
         };
         
         Object.entries(elementos).forEach(([id, valor]) => {
             const element = document.getElementById(id);
             if (element) {
-                if (id === 'margemTotalCompra') {
-                    element.textContent = `${valor.toFixed(1)}%`;
-                    element.className = `margem-total ${valor >= 0 ? 'margem-positiva' : 'margem-negativa'}`;
-                } else {
-                    element.textContent = formatarMoeda(valor);
-                }
+                element.textContent = this.formatarMoeda(valor);
             }
         });
         
@@ -798,34 +910,35 @@ export class ComprasModule {
             return;
         }
 
-        const fornecedor = this.app.fornecedores.getFornecedorById(this.fornecedorSelecionado);
+        const fornecedor = this.app.fornecedores?.getFornecedorById?.(this.fornecedorSelecionado);
         if (!fornecedor) {
             mostrarToast('Fornecedor não encontrado', 'error');
             return;
         }
 
         // Confirmar com usuário
-        const confirmacao = await showModalConfirmation({
-            title: 'Confirmar Compra',
-            message: `
-                <strong>Resumo da Compra:</strong><br>
-                • Fornecedor: ${sanitizarHTML(fornecedor.nome)}<br>
-                • ${this.carrinho.length} item(s)<br>
-                • Subtotal: R$ ${formatarMoeda(this.resumoCompra.subtotal)}<br>
-                • Frete: R$ ${formatarMoeda(this.resumoCompra.frete)}<br>
-                • <strong>Total: R$ ${formatarMoeda(this.resumoCompra.total)}</strong><br><br>
-                Deseja registrar esta compra?
-            `,
-            confirmText: 'Registrar Compra',
-            cancelText: 'Cancelar'
-        });
+        const confirmacao = confirm(`
+            Confirmar Compra:
+            
+            Fornecedor: ${fornecedor.nome}
+            Itens: ${this.carrinho.length}
+            Subtotal: R$ ${this.formatarMoeda(this.resumoCompra.subtotal)}
+            Frete: R$ ${this.formatarMoeda(this.resumoCompra.frete)}
+            Total: R$ ${this.formatarMoeda(this.resumoCompra.total)}
+            
+            Deseja registrar esta compra?
+        `);
 
         if (!confirmacao) return;
 
-        setButtonLoading('finalizarCompra', true);
+        const btnFinalizar = document.getElementById('finalizarCompra');
+        if (btnFinalizar) {
+            btnFinalizar.disabled = true;
+            btnFinalizar.textContent = 'Processando...';
+        }
 
         try {
-            const usuarioLogado = this.app.auth.getUsuarioLogado();
+            const usuarioLogado = this.app.auth?.getUsuarioLogado?.();
             const observacoes = document.getElementById('compraObservacoes')?.value.trim() || '';
             const frete = this.valorFrete || 0;
 
@@ -869,18 +982,18 @@ export class ComprasModule {
 
             // Atualizar estoque e preços dos produtos
             const atualizacoesPromises = this.carrinho.map(async (item) => {
-                const produto = this.app.produtos.getProdutos().find(p => p.id === item.produto_id);
+                const produtos = this.app.produtos?.getProdutos?.() || [];
+                const produto = produtos.find(p => p.id === item.produto_id);
                 if (!produto) return;
 
-                const novoEstoque = produto.estoque + item.quantidade;
+                const novoEstoque = (produto.estoque || 0) + item.quantidade;
                 
                 return supabase
                     .from('produto')
                     .update({
                         estoque: novoEstoque,
                         custo_unitario: item.valor_custo,
-                        preco: item.valor_venda,
-                        ultima_atualizacao: new Date().toISOString()
+                        preco: item.valor_venda
                     })
                     .eq('id', produto.id);
             });
@@ -892,7 +1005,9 @@ export class ComprasModule {
 
             // Atualizar cache e UI
             this.invalidarCache();
-            await this.app.produtos.carregar(true);
+            if (this.app.produtos?.carregar) {
+                await this.app.produtos.carregar(true);
+            }
             await this.listar();
 
             mostrarToast('✅ Compra registrada com sucesso!', 'sucesso');
@@ -907,9 +1022,13 @@ export class ComprasModule {
 
         } catch (error) {
             console.error('❌ Erro ao registrar compra:', error);
-            mostrarToast(handleSupabaseError(error), 'error');
+            mostrarToast(this.handleSupabaseError(error), 'error');
         } finally {
-            setButtonLoading('finalizarCompra', false);
+            const btnFinalizar = document.getElementById('finalizarCompra');
+            if (btnFinalizar) {
+                btnFinalizar.disabled = false;
+                btnFinalizar.textContent = 'Finalizar Compra';
+            }
         }
     }
 
@@ -920,12 +1039,14 @@ export class ComprasModule {
         this.produtosSelecionados = [];
         
         // Resetar UI
-        document.getElementById('fornecedorSelecionadoText').textContent = 'Selecione um fornecedor';
-        document.getElementById('fornecedorSelecionadoText').classList.add('placeholder');
+        const fornecedorText = document.getElementById('fornecedorSelecionadoText');
+        if (fornecedorText) {
+            fornecedorText.textContent = 'Selecione um fornecedor';
+            fornecedorText.classList.add('placeholder');
+        }
         
         document.querySelectorAll('.select-pesquisavel-item').forEach(i => {
             i.classList.remove('selected');
-            i.setAttribute('aria-selected', 'false');
         });
         
         const elementos = ['compraObservacoes', 'compraFrete'];
@@ -966,10 +1087,10 @@ export class ComprasModule {
             📊 RESUMO FINANCEIRO:
             ${'─'.repeat(40)}
             
-            Subtotal dos produtos: R$ ${formatarMoeda(compra.valor_total - (compra.frete || 0))}
-            ${compra.frete ? `Frete: R$ ${formatarMoeda(compra.frete)}` : ''}
+            Subtotal dos produtos: R$ ${this.formatarMoeda(compra.valor_total - (compra.frete || 0))}
+            ${compra.frete ? `Frete: R$ ${this.formatarMoeda(compra.frete)}` : ''}
             ${'─'.repeat(40)}
-            🎯 TOTAL DA COMPRA: R$ ${formatarMoeda(compra.valor_total)}
+            🎯 TOTAL DA COMPRA: R$ ${this.formatarMoeda(compra.valor_total)}
             
             ${compra.observacoes ? `\n📝 Observações:\n${compra.observacoes}\n` : ''}
             
@@ -986,46 +1107,29 @@ export class ComprasModule {
             mensagem += `
             ${index + 1}. ${item.produto_nome}
                Quantidade: ${item.quantidade}
-               Custo Unitário: R$ ${formatarMoeda(item.valor_custo)}
-               Venda Unitária: R$ ${formatarMoeda(item.valor_venda)}
+               Custo Unitário: R$ ${this.formatarMoeda(item.valor_custo)}
+               Venda Unitária: R$ ${this.formatarMoeda(item.valor_venda)}
                Margem Unitária: ${margem}%
-               Total Custo: R$ ${formatarMoeda(item.total_custo)}
-               Total Venda: R$ ${formatarMoeda(totalVenda)}
+               Total Custo: R$ ${this.formatarMoeda(item.total_custo)}
+               Total Venda: R$ ${this.formatarMoeda(totalVenda)}
                Margem Total: ${margemTotal}%
             `;
         });
 
-        // Criar modal personalizado
-        const modal = document.createElement('div');
-        modal.className = 'modal-detalhes-compra';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>📦 Detalhes da Compra #${compraId}</h3>
-                    <button onclick="this.parentElement.parentElement.remove()" class="btn-close">×</button>
-                </div>
-                <div class="modal-body">
-                    <pre style="white-space: pre-wrap; font-family: monospace; max-height: 60vh; overflow-y: auto;">${mensagem}</pre>
-                </div>
-                <div class="modal-footer">
-                    <button onclick="app.compras.gerarPDF(${compraId})" class="btn-info">
-                        📄 Gerar PDF
-                    </button>
-                    <button onclick="this.parentElement.parentElement.parentElement.remove()" class="btn-secondary">
-                        Fechar
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
+        alert(mensagem);
     }
 
     // ==================== EXCLUSÃO ====================
     async excluir(compraId) {
+        const compra = this.compras.find(c => c.id === compraId);
+        if (!compra) {
+            mostrarToast('Compra não encontrada', 'error');
+            return;
+        }
+
         const validacao = this.validarEstoqueParaExclusao(compraId);
         
-        if (!validacao.valido) {
+        if (!validacao.valido && validacao.problemas.length > 0) {
             let mensagem = `⚠️ ATENÇÃO: Exclusão pode causar estoque negativo\n\n`;
             
             validacao.problemas.forEach(p => {
@@ -1039,22 +1143,18 @@ export class ComprasModule {
             }
         }
 
-        const confirmacao = await showModalConfirmation({
-            title: 'Confirmar Exclusão',
-            message: `
-                <strong>Compra #${compraId}</strong><br>
-                Fornecedor: ${validacao.compra.fornecedor_nome}<br>
-                Valor: R$ ${formatarMoeda(validacao.compra.valor_total)}<br>
-                Data: ${validacao.compra.data_exibicao}<br><br>
-                <span style="color: #f44336;">
-                    ⚠️ O estoque dos produtos será reduzido!
-                </span><br><br>
-                Confirmar exclusão?
-            `,
-            confirmText: 'Excluir Compra',
-            cancelText: 'Cancelar',
-            confirmColor: 'danger'
-        });
+        const confirmacao = confirm(`
+            Confirmar Exclusão:
+            
+            Compra #${compraId}
+            Fornecedor: ${compra.fornecedor_nome}
+            Valor: R$ ${this.formatarMoeda(compra.valor_total)}
+            Data: ${compra.data_exibicao}
+            
+            ⚠️ O estoque dos produtos será reduzido!
+            
+            Confirmar exclusão?
+        `);
 
         if (!confirmacao) return;
 
@@ -1063,14 +1163,14 @@ export class ComprasModule {
             const itens = await this.carregarItens(compraId);
             
             for (const item of itens) {
-                const produto = this.app.produtos.getProdutos().find(p => p.id === item.produto_id);
+                const produtos = this.app.produtos?.getProdutos?.() || [];
+                const produto = produtos.find(p => p.id === item.produto_id);
                 if (produto) {
-                    const novoEstoque = Math.max(0, produto.estoque - item.quantidade);
+                    const novoEstoque = Math.max(0, (produto.estoque || 0) - item.quantidade);
                     await supabase
                         .from('produto')
                         .update({
-                            estoque: novoEstoque,
-                            ultima_atualizacao: new Date().toISOString()
+                            estoque: novoEstoque
                         })
                         .eq('id', produto.id);
                 }
@@ -1093,21 +1193,24 @@ export class ComprasModule {
 
             // Atualizar cache e UI
             this.invalidarCache();
-            await this.app.produtos.carregar(true);
+            if (this.app.produtos?.carregar) {
+                await this.app.produtos.carregar(true);
+            }
             await this.listar();
             
             mostrarToast('✅ Compra excluída e estoque ajustado!', 'sucesso');
         } catch (error) {
             console.error('❌ Erro ao excluir compra:', error);
-            mostrarToast(handleSupabaseError(error), 'error');
+            mostrarToast(this.handleSupabaseError(error), 'error');
         }
     }
 
     // ==================== GERAR PDF ====================
     async gerarPDF(compraId) {
-        const compra = this.compras.find(c => c.id === compraId);
+        let compra = this.compras.find(c => c.id === compraId);
         if (!compra) {
-            compra = (await this.carregar(true)).find(c => c.id === compraId);
+            const comprasAtualizadas = await this.carregar(true);
+            compra = comprasAtualizadas.find(c => c.id === compraId);
         }
         
         if (!compra) {
@@ -1116,7 +1219,7 @@ export class ComprasModule {
         }
 
         const itens = await this.carregarItens(compraId);
-        const subtotal = itens.reduce((sum, item) => sum + item.total_custo, 0);
+        const subtotal = itens.reduce((sum, item) => sum + (item.total_custo || 0), 0);
         
         try {
             if (typeof jsPDF === 'undefined') {
@@ -1201,14 +1304,12 @@ export class ComprasModule {
             
             // Itens
             doc.setFont('helvetica', 'normal');
-            const itensPorPagina = 20;
-            let itemCount = 0;
             
-            itens.forEach((item, index) => {
-                if (itemCount >= itensPorPagina) {
+            itens.forEach((item) => {
+                // Verificar se precisa de nova página
+                if (y > 250) {
                     doc.addPage();
                     y = 20;
-                    itemCount = 0;
                 }
                 
                 const nomeProduto = item.produto_nome.length > 40 
@@ -1216,13 +1317,12 @@ export class ComprasModule {
                     : item.produto_nome;
                 
                 doc.text(nomeProduto, marginLeft, y);
-                doc.text(item.quantidade.toString(), marginLeft + 90, y);
-                doc.text(`R$ ${formatarMoeda(item.valor_custo)}`, marginLeft + 110, y);
-                doc.text(`R$ ${formatarMoeda(item.valor_venda)}`, marginLeft + 135, y);
-                doc.text(`R$ ${formatarMoeda(item.total_custo)}`, pageWidth - marginRight, y, { align: 'right' });
+                doc.text((item.quantidade || 0).toString(), marginLeft + 90, y);
+                doc.text(`R$ ${this.formatarMoeda(item.valor_custo || 0)}`, marginLeft + 110, y);
+                doc.text(`R$ ${this.formatarMoeda(item.valor_venda || 0)}`, marginLeft + 135, y);
+                doc.text(`R$ ${this.formatarMoeda(item.total_custo || 0)}`, pageWidth - marginRight, y, { align: 'right' });
                 
                 y += 6;
-                itemCount++;
             });
             
             y += 4;
@@ -1234,12 +1334,12 @@ export class ComprasModule {
             doc.setFont('helvetica', 'normal');
             
             doc.text('Subtotal dos produtos:', pageWidth - marginRight - 60, y);
-            doc.text(`R$ ${formatarMoeda(subtotal)}`, pageWidth - marginRight, y, { align: 'right' });
+            doc.text(`R$ ${this.formatarMoeda(subtotal)}`, pageWidth - marginRight, y, { align: 'right' });
             
             if (compra.frete && compra.frete > 0) {
                 y += 6;
                 doc.text('Frete:', pageWidth - marginRight - 60, y);
-                doc.text(`R$ ${formatarMoeda(compra.frete)}`, pageWidth - marginRight, y, { align: 'right' });
+                doc.text(`R$ ${this.formatarMoeda(compra.frete)}`, pageWidth - marginRight, y, { align: 'right' });
             }
             
             y += 10;
@@ -1250,7 +1350,7 @@ export class ComprasModule {
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.text('TOTAL DO PEDIDO:', pageWidth - marginRight - 60, y);
-            doc.text(`R$ ${formatarMoeda(compra.valor_total)}`, pageWidth - marginRight, y, { align: 'right' });
+            doc.text(`R$ ${this.formatarMoeda(compra.valor_total)}`, pageWidth - marginRight, y, { align: 'right' });
             
             // Rodapé
             const pageCount = doc.internal.getNumberOfPages();
@@ -1289,7 +1389,7 @@ export class ComprasModule {
                         <h1>Pedido de Compra #${compraId}</h1>
                         <h3>Fornecedor: ${compra.fornecedor_nome}</h3>
                         <p>Data: ${compra.data_exibicao}</p>
-                        <p>Total: R$ ${formatarMoeda(compra.valor_total)}</p>
+                        <p>Total: R$ ${this.formatarMoeda(compra.valor_total)}</p>
                         <hr>
                         <h4>Itens (${itens.length}):</h4>
                         <table border="1" cellpadding="5" style="border-collapse: collapse;">
@@ -1299,19 +1399,21 @@ export class ComprasModule {
                             ${itens.map(item => `
                                 <tr>
                                     <td>${item.produto_nome}</td>
-                                    <td>${item.quantidade}</td>
-                                    <td>R$ ${formatarMoeda(item.valor_custo)}</td>
-                                    <td>R$ ${formatarMoeda(item.total_custo)}</td>
+                                    <td>${item.quantidade || 0}</td>
+                                    <td>R$ ${this.formatarMoeda(item.valor_custo || 0)}</td>
+                                    <td>R$ ${this.formatarMoeda(item.total_custo || 0)}</td>
                                 </tr>
                             `).join('')}
                         </table>
-                        <p><strong>Total: R$ ${formatarMoeda(compra.valor_total)}</strong></p>
+                        <p><strong>Total: R$ ${this.formatarMoeda(compra.valor_total)}</strong></p>
                     </body>
                     </html>
                 `;
                 
                 const novaJanela = window.open();
-                novaJanela.document.write(conteudo);
+                if (novaJanela) {
+                    novaJanela.document.write(conteudo);
+                }
             } else {
                 mostrarToast('Erro ao gerar PDF: ' + error.message, 'error');
             }
