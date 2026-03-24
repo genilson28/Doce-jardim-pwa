@@ -1,12 +1,13 @@
 export class EstoqueModule {
     constructor(app) {
         this.app = app;
-        this.produtosFiltrados = [];
+        this.filtro = 'todos';
+        this.filtroCategoria = 'todos';
+        this.busca = '';
+        this.listaFiltrada = [];
     }
 
     async listar() {
-        console.log('🔄 Carregando estoque...');
-        
         const produtos = await this.app.produtos.carregar();
 
         if (!produtos || produtos.length === 0) {
@@ -14,21 +15,45 @@ export class EstoqueModule {
             return;
         }
 
-        this.produtosFiltrados = produtos;
+        this.produtos = produtos;
+        this.aplicarFiltros();
+    }
 
-        this.app.pagination.setup(this.produtosFiltrados, 5);
+    aplicarFiltros() {
+        let filtrados = [...this.produtos];
+
+        // 🔍 BUSCA
+        if (this.busca) {
+            filtrados = filtrados.filter(p =>
+                p.nome.toLowerCase().includes(this.busca.toLowerCase())
+            );
+        }
+
+        // 📂 CATEGORIA
+        if (this.filtroCategoria !== 'todos') {
+            filtrados = filtrados.filter(p =>
+                p.categoria === this.filtroCategoria
+            );
+        }
+
+        // 🚦 STATUS
+        if (this.filtro === 'baixo') {
+            filtrados = filtrados.filter(p => p.estoque <= 5 && p.estoque > 0);
+        }
+
+        if (this.filtro === 'zerado') {
+            filtrados = filtrados.filter(p => p.estoque === 0);
+        }
+
+        this.listaFiltrada = filtrados;
+
+        this.app.pagination.setup(filtrados, 5);
         this.renderizarPagina();
     }
 
     renderEmpty() {
-        const lista = document.getElementById('listaEstoque');
-        if (!lista) return;
-
-        lista.innerHTML = `
-            <div class="empty-state">
-                📦 Nenhum produto cadastrado
-            </div>
-        `;
+        document.getElementById('listaEstoque').innerHTML =
+            `<div class="empty-state">📦 Nenhum produto cadastrado</div>`;
     }
 
     getStatus(produto) {
@@ -41,161 +66,129 @@ export class EstoqueModule {
         }
     }
 
-    aplicarFiltros() {
-        const busca = document.getElementById('buscaEstoque')?.value.toLowerCase() || '';
-        const categoria = document.getElementById('filtroCategoria')?.value || '';
-        const statusFiltro = document.getElementById('filtroStatus')?.value || '';
-
-        const produtos = this.app.produtos.getProdutos();
-
-        this.produtosFiltrados = produtos.filter(p => {
-            const status = this.getStatus(p);
-
-            const okBusca = p.nome.toLowerCase().includes(busca);
-            const okCategoria = !categoria || p.categoria === categoria;
-
-            let okStatus = true;
-            if (statusFiltro === 'baixo') okStatus = p.estoque <= 5 && p.estoque > 0;
-            if (statusFiltro === 'critico') okStatus = p.estoque === 0;
-
-            return okBusca && okCategoria && okStatus;
-        });
-
-        this.app.pagination.setup(this.produtosFiltrados, 5);
-        this.renderizarPagina();
-    }
-
-    atualizarDashboard() {
-        const total = this.produtosFiltrados.length;
-        const baixo = this.produtosFiltrados.filter(p => p.estoque <= 5 && p.estoque > 0).length;
-        const valor = this.produtosFiltrados.reduce((s, p) => s + (p.preco * p.estoque), 0);
-
-        document.getElementById('dashTotal').innerText = total;
-        document.getElementById('dashBaixo').innerText = baixo;
-        document.getElementById('dashValor').innerText = 'R$ ' + valor.toFixed(2);
-    }
-
-    exportarPDF(modoFornecedor = false) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-
-        let y = 10;
-
-        doc.text("RELATÓRIO DE ESTOQUE", 10, y);
-        y += 10;
-
-        this.produtosFiltrados.forEach(p => {
-            let linha = `${p.nome} | QTD: ${p.estoque}`;
-
-            if (!modoFornecedor) {
-                linha += ` | R$ ${p.preco}`;
-            }
-
-            doc.text(linha, 10, y);
-            y += 8;
-        });
-
-        doc.save(modoFornecedor ? "fornecedor.pdf" : "estoque-completo.pdf");
-    }
-
     renderizarPagina() {
         const lista = document.getElementById('listaEstoque');
-        if (!lista) return;
-
         const pagina = this.app.pagination.getPageItems();
 
-        let html = `
+        const categorias = [...new Set(this.produtos.map(p => p.categoria))];
 
-            <!-- DASHBOARD -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <h3>Total</h3>
-                    <div id="dashTotal" class="stat-value">0</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Baixo</h3>
-                    <div id="dashBaixo" class="stat-value">0</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Valor</h3>
-                    <div id="dashValor" class="stat-value">0</div>
-                </div>
+        let html = `
+            <div class="estoque-header">
+                <h3>📦 Controle de Estoque</h3>
             </div>
 
             <!-- FILTROS -->
-            <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-                <input id="buscaEstoque" placeholder="Buscar..." class="input-base">
-                
-                <select id="filtroCategoria" class="input-base">
-                    <option value="">Categorias</option>
+            <div class="filtros-estoque">
+                <input type="text" placeholder="🔍 Buscar..."
+                    value="${this.busca}"
+                    oninput="app.estoque.busca = this.value; app.estoque.aplicarFiltros()">
+
+                <select onchange="app.estoque.filtroCategoria = this.value; app.estoque.aplicarFiltros()">
+                    <option value="todos">Categorias</option>
+                    ${categorias.map(c => `
+                        <option value="${c}" ${this.filtroCategoria === c ? 'selected' : ''}>${c}</option>
+                    `).join('')}
                 </select>
 
-                <select id="filtroStatus" class="input-base">
-                    <option value="">Status</option>
-                    <option value="baixo">Baixo</option>
-                    <option value="critico">Crítico</option>
+                <select onchange="app.estoque.filtro = this.value; app.estoque.aplicarFiltros()">
+                    <option value="todos">Status</option>
+                    <option value="baixo" ${this.filtro === 'baixo' ? 'selected' : ''}>Baixo</option>
+                    <option value="zerado" ${this.filtro === 'zerado' ? 'selected' : ''}>Sem estoque</option>
                 </select>
 
-                <button id="btnPdf" class="btn-primary">PDF</button>
-                <button id="btnPdfFornecedor" class="btn-secondary">Fornecedor</button>
+                <button onclick="app.estoque.gerarPDFCompleto()">💰 PDF Completo</button>
+                <button onclick="app.estoque.gerarPDFFornecedor()">📦 PDF Fornecedor</button>
             </div>
 
-            <!-- TABELA -->
-            <div class="tabela-estoque-container">
-                <table class="tabela-estoque">
-                    <thead>
-                        <tr>
-                            <th>Produto</th>
-                            <th>Categoria</th>
-                            <th>Qtd</th>
-                            <th>Preço</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            <table class="tabela-estoque">
+                <thead>
+                    <tr>
+                        <th>Produto</th>
+                        <th>Categoria</th>
+                        <th>Qtd</th>
+                        <th>Preço</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
         `;
 
         pagina.forEach(produto => {
             const status = this.getStatus(produto);
 
             html += `
-                <tr>
-                    <td><strong>${produto.nome}</strong></td>
+                <tr class="${status.class}">
+                    <td>${produto.nome}</td>
                     <td>${produto.categoria}</td>
                     <td>${produto.estoque}</td>
                     <td>R$ ${(produto.preco ?? 0).toFixed(2)}</td>
-                    <td>
-                        <span class="badge ${status.class}">
-                            ${status.icon} ${status.label}
-                        </span>
-                    </td>
+                    <td>${status.icon} ${status.label}</td>
                 </tr>
             `;
         });
 
-        html += `
-                    </tbody>
-                </table>
-            </div>
-
-            <div id="paginacaoEstoque" class="paginacao"></div>
+        html += `</tbody></table>
+            <div id="paginacaoEstoque"></div>
         `;
 
         lista.innerHTML = html;
-
-        // EVENTOS
-        document.getElementById('buscaEstoque').addEventListener('input', () => this.aplicarFiltros());
-        document.getElementById('filtroCategoria').addEventListener('change', () => this.aplicarFiltros());
-        document.getElementById('filtroStatus').addEventListener('change', () => this.aplicarFiltros());
-
-        document.getElementById('btnPdf').onclick = () => this.exportarPDF(false);
-        document.getElementById('btnPdfFornecedor').onclick = () => this.exportarPDF(true);
-
-        this.atualizarDashboard();
 
         this.app.pagination.renderPaginationControls(
             'paginacaoEstoque',
             this.renderizarPagina.bind(this)
         );
+    }
+
+    // 💰 PDF COMPLETO (COM VALORES)
+    gerarPDFCompleto() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        let y = 10;
+        doc.setFontSize(14);
+        doc.text("Relatório Completo de Estoque", 10, y);
+        y += 10;
+
+        this.listaFiltrada.forEach(p => {
+            doc.setFontSize(10);
+            doc.text(`${p.nome}`, 10, y);
+            doc.text(`Cat: ${p.categoria}`, 10, y + 5);
+            doc.text(`Qtd: ${p.estoque}`, 100, y);
+            doc.text(`R$ ${p.preco}`, 100, y + 5);
+
+            y += 15;
+            if (y > 270) {
+                doc.addPage();
+                y = 10;
+            }
+        });
+
+        doc.save("estoque_completo.pdf");
+    }
+
+    // 📦 PDF FORNECEDOR (SEM VALORES)
+    gerarPDFFornecedor() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        let y = 10;
+        doc.setFontSize(14);
+        doc.text("Relatório para Fornecedor", 10, y);
+        y += 10;
+
+        this.listaFiltrada.forEach(p => {
+            doc.setFontSize(10);
+            doc.text(`${p.nome}`, 10, y);
+            doc.text(`Categoria: ${p.categoria}`, 10, y + 5);
+            doc.text(`Quantidade: ${p.estoque}`, 100, y);
+
+            y += 15;
+            if (y > 270) {
+                doc.addPage();
+                y = 10;
+            }
+        });
+
+        doc.save("estoque_fornecedor.pdf");
     }
 }
