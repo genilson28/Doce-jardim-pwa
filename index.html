@@ -419,13 +419,33 @@
                         
                         <div class="forma-pagamento">
                             <label for="formaPagamento">Forma de Pagamento:</label>
-                            <select id="formaPagamento">
+                            <select id="formaPagamento" onchange="app.pdv.handleFormaPagamentoChange()">
                                 <option value="dinheiro">💵 Dinheiro</option>
                                 <option value="pix">📱 PIX</option>
                                 <option value="credito">💳 Cartão Crédito</option>
                                 <option value="debito">💳 Cartão Débito</option>
                                 <option value="fiado">📝 Fiado (a prazo)</option>
                             </select>
+                        </div>
+
+                        <!-- Seleção de Cliente para Fiado no PDV -->
+                        <div id="pdvClienteFiadoContainer" style="display: none; margin-top: 10px;">
+                            <label>Cliente (Fiado):</label>
+                            <div class="select-pesquisavel">
+                                <div class="select-pesquisavel-header" id="pdvHeaderClienteFiado" onclick="app.pdv.toggleClienteFiado()">
+                                    <span id="pdvClienteFiadoSelecionadoText">Selecione um cliente</span>
+                                    <span class="select-arrow">▼</span>
+                                </div>
+                                <div class="select-pesquisavel-dropdown" id="pdvSelectClienteFiadoDropdown" style="display: none;">
+                                    <div class="select-pesquisavel-search">
+                                        <input type="text" id="pdvSearchClienteFiado" placeholder="Pesquisar cliente..."
+                                               oninput="app.pdv.pesquisarClienteFiado(this.value)" onclick="event.stopPropagation()">
+                                    </div>
+                                    <div class="select-pesquisavel-list" id="pdvListaClientesFiado">
+                                        <div class="empty-state">Carregando clientes...</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <button onclick="app.pdv.finalizarVenda()" class="btn-primary btn-large" id="finalizarVenda">Finalizar Venda</button>
