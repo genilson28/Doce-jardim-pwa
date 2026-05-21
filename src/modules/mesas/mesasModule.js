@@ -6,26 +6,20 @@ import { formatarMoeda, formatarDataHora } from '../../utils/formatters.js';
 import { pdfService } from '../../services/pdfService.js';
 import { CATEGORIAS_EMOJIS } from '../../config/constants.js';
 
-// CONSTANTES DE CATEGORIAS (adicionadas para resolver o erro)
 const CATEGORIAS = [
-    { id: 'todas', nome: '🛒 Todos' },
-    { id: 'bebidas', nome: '🥤 Bebidas' },
-    { id: 'lanches', nome: '🍔 Lanches' },
-    { id: 'sobremesas', nome: '🍰 Sobremesas' },
-    { id: 'doces', nome: '🍬 Doces' },
-    { id: 'salgados', nome: '🥨 Salgados' },
-    { id: 'outros', nome: '📦 Outros' }
+    { id: 'todas', nome: 'Todos' },
+    { id: 'bebidas', nome: 'Bebidas' },
+    { id: 'lanches', nome: 'Lanches' },
+    { id: 'sobremesas', nome: 'Sobremesas' },
+    { id: 'doces', nome: 'Doces' },
+    { id: 'salgados', nome: 'Salgados' },
+    { id: 'outros', nome: 'Outros' }
 ];
 
-// Função auxiliar para obter ícone da categoria
 function getIconeCategoria(categoria) {
     const icones = {
-        'bebidas': '🥤',
-        'lanches': '🍔',
-        'sobremesas': '🍰',
-        'doces': '🍬',
-        'salgados': '🥨',
-        'outros': '📦'
+        'bebidas': '🥤', 'lanches': '🍔', 'sobremesas': '🍰',
+        'doces': '🍬', 'salgados': '🥨', 'outros': '📦'
     };
     return icones[categoria] || '📦';
 }
@@ -36,6 +30,7 @@ export class MesasModule {
         this.mesas = [];
         this.mesaAtual = null;
         this.carrinho = [];
+        this.clienteFiadoSelecionado = null;
     }
 
     async carregar() {
@@ -44,12 +39,11 @@ export class MesasModule {
                 .from('mesas')
                 .select('*')
                 .order('numero');
-            
             if (error) throw error;
             this.mesas = data || [];
             return this.mesas;
         } catch (error) {
-            console.error('❌ Erro ao carregar mesas:', error);
+            console.error('Erro ao carregar mesas:', error);
             return [];
         }
     }
@@ -58,21 +52,21 @@ export class MesasModule {
         await this.carregar();
         const lista = document.getElementById('listaMesas');
         if (!lista) return;
-        
+
         lista.innerHTML = '';
-        
+
         if (this.mesas.length === 0) {
             lista.innerHTML = '<div class="empty-state">Nenhuma mesa cadastrada</div>';
             return;
         }
-        
+
         this.mesas.forEach(mesa => {
             const div = document.createElement('div');
             div.className = `mesa-card ${mesa.status}`;
-            
-            const statusTexto = mesa.status === 'livre' ? '✓ Livre' : '👥 Ocupada';
+
+            const statusTexto = mesa.status === 'livre' ? 'Livre' : 'Ocupada';
             const valorTexto = mesa.valor_total > 0 ? `R$ ${mesa.valor_total.toFixed(2)}` : '';
-            
+
             div.innerHTML = `
                 <div class="mesa-numero">🪑</div>
                 <h3>Mesa ${mesa.numero}</h3>
@@ -80,33 +74,22 @@ export class MesasModule {
                 ${valorTexto ? `<div class="mesa-valor">${valorTexto}</div>` : ''}
                 ${mesa.pedido_atual ? `<div class="mesa-info"><p>Comanda aberta</p></div>` : ''}
             `;
-            
+
             div.onclick = () => this.abrirMenu(mesa);
             lista.appendChild(div);
         });
     }
 
     filtrar(filtro) {
-        const todasMesas = document.querySelectorAll('.mesa-card');
-        todasMesas.forEach(card => {
-            if (filtro === 'todas') {
-                card.style.display = 'block';
-            } else if (filtro === 'ocupadas') {
-                card.style.display = card.classList.contains('ocupada') ? 'block' : 'none';
-            } else if (filtro === 'livres') {
-                card.style.display = card.classList.contains('livre') ? 'block' : 'none';
-            }
+        document.querySelectorAll('.mesa-card').forEach(card => {
+            if (filtro === 'todas') card.style.display = 'block';
+            else if (filtro === 'ocupadas') card.style.display = card.classList.contains('ocupada') ? 'block' : 'none';
+            else if (filtro === 'livres') card.style.display = card.classList.contains('livre') ? 'block' : 'none';
         });
-        
-        document.querySelectorAll('.mesas-filtros .btn-filtro').forEach(btn => 
-            btn.classList.remove('active')
-        );
-        
-        // Ativar botão do filtro atual
+
+        document.querySelectorAll('.mesas-filtros .btn-filtro').forEach(btn => btn.classList.remove('active'));
         const botaoAtivo = document.querySelector(`[data-filtro="${filtro}"]`);
-        if (botaoAtivo) {
-            botaoAtivo.classList.add('active');
-        }
+        if (botaoAtivo) botaoAtivo.classList.add('active');
     }
 
     async abrirMenu(mesa) {
@@ -119,43 +102,36 @@ export class MesasModule {
                 `Mesa ${mesa.numero} - R$ ${mesa.valor_total?.toFixed(2) || '0.00'}\n\n` +
                 `OK = Ver Comanda\nCancelar = Fechar Conta`
             );
-            
-            if (opcao) {
-                await this.abrirComanda(mesa);
-            } else {
-                await this.mostrarModalFecharConta(mesa);
-            }
+            if (opcao) await this.abrirComanda(mesa);
+            else await this.mostrarModalFecharConta(mesa);
         }
     }
 
     async abrirComanda(mesa) {
         this.mesaAtual = mesa;
         await this.app.produtos.carregar();
-        
-        // Inicializar paginação se existir
+
         if (this.app.pagination) {
             this.app.pagination.setup(this.app.produtos.getProdutos(), 25);
         }
-        
+
         this.carrinho = mesa.pedido_atual ? JSON.parse(mesa.pedido_atual) : [];
-        
+
         if (mesa.status === 'livre') {
             const { error } = await supabase.from('mesas').update({
                 status: 'ocupada',
                 pedido_atual: '[]',
                 valor_total: 0
             }).eq('id', mesa.id);
-            
+
             if (error) {
-                console.error('❌ Erro ao ocupar mesa:', error);
                 mostrarToast('Erro ao abrir comanda', 'error');
                 return;
-            } else {
-                this.mesaAtual.status = 'ocupada';
             }
+            this.mesaAtual.status = 'ocupada';
         }
-        
-        document.getElementById('comandaTitulo').textContent = `📋 Mesa ${mesa.numero}`;
+
+        document.getElementById('comandaTitulo').textContent = `Mesa ${mesa.numero}`;
         this.app.showScreen('comandaScreen');
         this.carregarProdutosComanda();
         this.atualizarComanda();
@@ -169,7 +145,7 @@ export class MesasModule {
     renderizarCategorias() {
         const container = document.getElementById('categoriasMesas');
         if (!container) return;
-        
+
         container.innerHTML = CATEGORIAS.map(cat => `
             <button class="btn-filtro ${this.app.pagination?.currentCategory === cat.id ? 'active' : ''}" 
                     onclick="app.mesas.filtrarCategoria('${cat.id}')">
@@ -180,28 +156,21 @@ export class MesasModule {
 
     filtrarCategoria(categoria) {
         if (!this.app.pagination) return;
-        
         this.app.pagination.currentCategory = categoria;
         this.app.pagination.currentPage = 1;
-        
         const termoPesquisa = document.getElementById('pesquisaMesas')?.value.toLowerCase().trim() || '';
         this.app.pagination.filteredData = this.app.filtering.apply(
-            this.app.produtos.getProdutos(),
-            termoPesquisa,
-            categoria
+            this.app.produtos.getProdutos(), termoPesquisa, categoria
         );
-        
         this.renderizarProdutos();
     }
 
     pesquisarProdutos() {
         if (!this.app.pagination) return;
-        
         const termoPesquisa = document.getElementById('pesquisaMesas').value.toLowerCase().trim();
         this.app.pagination.currentPage = 1;
         this.app.pagination.filteredData = this.app.filtering.apply(
-            this.app.produtos.getProdutos(),
-            termoPesquisa,
+            this.app.produtos.getProdutos(), termoPesquisa,
             this.app.pagination.currentCategory || 'todas'
         );
         this.renderizarProdutos();
@@ -210,31 +179,22 @@ export class MesasModule {
     renderizarProdutos() {
         const lista = document.getElementById('listaProdutosComanda');
         if (!lista) return;
-        
-        let produtosParaExibir = [];
-        
-        if (this.app.pagination) {
-            produtosParaExibir = this.app.pagination.getPageItems();
-        } else {
-            // Fallback: mostrar todos os produtos se paginação não estiver disponível
-            produtosParaExibir = this.app.produtos.getProdutos().slice(0, 25);
-        }
-        
+
+        let produtosParaExibir = this.app.pagination
+            ? this.app.pagination.getPageItems()
+            : this.app.produtos.getProdutos().slice(0, 25);
+
         if (produtosParaExibir.length === 0) {
             lista.innerHTML = '<div class="empty-state">Nenhum produto encontrado</div>';
-            if (this.app.pagination) {
-                this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
-            }
+            if (this.app.pagination) this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
             return;
         }
-        
+
         lista.innerHTML = '';
-        
         produtosParaExibir.forEach(produto => {
             const div = document.createElement('div');
             div.className = 'produto-card';
             div.onclick = () => this.adicionarAoCarrinho(produto.id);
-            
             div.innerHTML = `
                 <h4>${produto.nome}</h4>
                 <p>R$ ${produto.preco?.toFixed(2) || '0.00'}</p>
@@ -243,42 +203,26 @@ export class MesasModule {
                     ${getIconeCategoria(produto.categoria)} ${produto.categoria}
                 </div>
             `;
-            
             lista.appendChild(div);
         });
-        
-        if (this.app.pagination) {
-            this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
-        }
+
+        if (this.app.pagination) this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
     }
 
     adicionarAoCarrinho(produtoId) {
         const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
         if (!produto) return;
-        
-        if (produto.estoque <= 0) {
-            mostrarToast('Produto sem estoque!', 'error');
-            return;
-        }
-        
+
+        if (produto.estoque <= 0) { mostrarToast('Produto sem estoque!', 'error'); return; }
+
         const itemExistente = this.carrinho.find(item => item.id === produtoId);
-        
         if (itemExistente) {
-            if (itemExistente.quantidade < produto.estoque) {
-                itemExistente.quantidade += 1;
-            } else {
-                mostrarToast('Estoque insuficiente!', 'warning');
-                return;
-            }
+            if (itemExistente.quantidade < produto.estoque) itemExistente.quantidade += 1;
+            else { mostrarToast('Estoque insuficiente!', 'warning'); return; }
         } else {
-            this.carrinho.push({
-                id: produto.id,
-                nome: produto.nome,
-                preco: produto.preco,
-                quantidade: 1
-            });
+            this.carrinho.push({ id: produto.id, nome: produto.nome, preco: produto.preco, quantidade: 1 });
         }
-        
+
         this.atualizarComanda();
         this.salvarComanda();
         mostrarToast(`${produto.nome} adicionado`, 'sucesso');
@@ -287,7 +231,7 @@ export class MesasModule {
     atualizarComanda() {
         const comandaItens = document.getElementById('comandaItens');
         if (!comandaItens) return;
-        
+
         if (this.carrinho.length === 0) {
             comandaItens.innerHTML = '<div class="empty-state">Comanda vazia</div>';
         } else {
@@ -304,11 +248,8 @@ export class MesasModule {
                 </div>
             `).join('');
         }
-        
-        const total = this.carrinho.reduce((sum, item) => 
-            sum + ((item.preco || 0) * item.quantidade), 0
-        );
-        
+
+        const total = this.carrinho.reduce((sum, item) => sum + ((item.preco || 0) * item.quantidade), 0);
         document.getElementById('comandaTotal').textContent = total.toFixed(2);
     }
 
@@ -324,19 +265,14 @@ export class MesasModule {
 
     async salvarComanda() {
         if (!this.mesaAtual) return;
-        
-        const total = this.carrinho.reduce((sum, item) => 
-            sum + ((item.preco || 0) * item.quantidade), 0
-        );
-        
+        const total = this.carrinho.reduce((sum, item) => sum + ((item.preco || 0) * item.quantidade), 0);
         const { error } = await supabase.from('mesas').update({
             status: 'ocupada',
             pedido_atual: JSON.stringify(this.carrinho),
             valor_total: total
         }).eq('id', this.mesaAtual.id);
-        
+
         if (error) {
-            console.error('❌ Erro ao salvar comanda:', error);
             mostrarToast('Erro ao salvar comanda', 'error');
         } else {
             this.mesaAtual.valor_total = total;
@@ -351,38 +287,22 @@ export class MesasModule {
         this.app.showScreen('mesasScreen');
     }
 
+    // ==================== IMPRIMIR COMANDA (durante atendimento) ====================
     imprimirComanda() {
         if (this.carrinho.length === 0) {
             mostrarToast('Comanda vazia!', 'warning');
             return;
         }
-        
-        const total = this.carrinho.reduce((sum, item) => 
-            sum + ((item.preco || 0) * item.quantidade), 0
-        );
-        
-        const comanda = {
-            itens: JSON.stringify(this.carrinho),
-            subtotal: total,
-            desconto: 0,
-            total: total,
-            forma_pagamento: 'Comanda',
-            data: new Date().toISOString(),
-            usuario_nome: 'Mesa'
-        };
-        
-        pdfService.gerarComprovantePDF(comanda, this.mesaAtual.numero);
+        pdfService.gerarComandaPDF(this.carrinho, this.mesaAtual.numero);
+        mostrarToast('Comanda gerada!', 'sucesso');
     }
 
+    // ==================== MODAL FECHAR CONTA ====================
     async mostrarModalFecharConta(mesa) {
         this.mesaAtual = mesa;
 
         if (mesa.pedido_atual) {
-            try {
-                this.carrinho = JSON.parse(mesa.pedido_atual);
-            } catch (e) {
-                this.carrinho = [];
-            }
+            try { this.carrinho = JSON.parse(mesa.pedido_atual); } catch (e) { this.carrinho = []; }
         }
 
         const total = mesa.valor_total || 0;
@@ -393,7 +313,6 @@ export class MesasModule {
         document.getElementById('modalTotalFinal').textContent = total.toFixed(2);
         document.getElementById('modalClienteFiadoContainer').style.display = 'none';
 
-        // Carregar clientes para o dropdown de fiado
         await this.app.clientes.carregar();
         this.renderizarListaClientesFiado();
 
@@ -401,19 +320,12 @@ export class MesasModule {
         modal.classList.add('active');
         modal.style.display = 'flex';
 
-        // Configurar eventos de desconto
         const tipoDesconto = document.getElementById('modalTipoDesconto');
         const valorDesconto = document.getElementById('modalValorDesconto');
         const formaPagamento = document.getElementById('modalFormaPagamento');
 
-        tipoDesconto.onchange = () => {
-            this.calcularTotalModal();
-        };
-
-        valorDesconto.oninput = () => {
-            this.calcularTotalModal();
-        };
-
+        tipoDesconto.onchange = () => this.calcularTotalModal();
+        valorDesconto.oninput = () => this.calcularTotalModal();
         formaPagamento.onchange = () => {
             const isFiado = formaPagamento.value === 'fiado';
             document.getElementById('modalClienteFiadoContainer').style.display = isFiado ? 'block' : 'none';
@@ -423,7 +335,6 @@ export class MesasModule {
             }
         };
 
-        // Resetar valores
         tipoDesconto.value = 'nenhum';
         valorDesconto.value = '';
         document.getElementById('modalDescontoAplicado').style.display = 'none';
@@ -438,7 +349,7 @@ export class MesasModule {
 
         const clientes = this.app.clientes.getClientes();
         if (clientes.length === 0) {
-            lista.innerHTML = '<div class="empty-state">Nenhum cliente cadastrado. Cadastre em Clientes.</div>';
+            lista.innerHTML = '<div class="empty-state">Nenhum cliente cadastrado.</div>';
             return;
         }
 
@@ -463,8 +374,7 @@ export class MesasModule {
         const itens = lista.querySelectorAll('.select-pesquisavel-item');
         termo = termo.toLowerCase().trim();
         itens.forEach(item => {
-            const nome = item.dataset.nome.toLowerCase();
-            item.style.display = nome.includes(termo) ? 'block' : 'none';
+            item.style.display = item.dataset.nome.toLowerCase().includes(termo) ? 'block' : 'none';
         });
     }
 
@@ -482,33 +392,22 @@ export class MesasModule {
         const subtotal = this.mesaAtual.valor_total || 0;
         const tipoDesconto = document.getElementById('modalTipoDesconto').value;
         const valorDescontoInput = document.getElementById('modalValorDesconto').value;
-        
+
         let desconto = 0;
-        
         if (tipoDesconto !== 'nenhum' && valorDescontoInput) {
             const valorDesconto = parseFloat(valorDescontoInput) || 0;
-            
-            if (tipoDesconto === 'percentual') {
-                desconto = (subtotal * valorDesconto) / 100;
-            } else {
-                desconto = valorDesconto;
-            }
-            
-            // Limitar desconto ao valor máximo do subtotal
-            if (desconto > subtotal) {
-                desconto = subtotal;
-            }
+            desconto = tipoDesconto === 'percentual' ? (subtotal * valorDesconto) / 100 : valorDesconto;
+            if (desconto > subtotal) desconto = subtotal;
         }
-        
+
         if (desconto > 0) {
             document.getElementById('modalDescontoAplicado').style.display = 'block';
             document.getElementById('modalValorDescontoAplicado').textContent = desconto.toFixed(2);
         } else {
             document.getElementById('modalDescontoAplicado').style.display = 'none';
         }
-        
-        const totalFinal = Math.max(0, subtotal - desconto);
-        document.getElementById('modalTotalFinal').textContent = totalFinal.toFixed(2);
+
+        document.getElementById('modalTotalFinal').textContent = Math.max(0, subtotal - desconto).toFixed(2);
     }
 
     fecharModalConta() {
@@ -522,108 +421,74 @@ export class MesasModule {
         const tipoDesconto = document.getElementById('modalTipoDesconto').value;
         const valorDescontoInput = document.getElementById('modalValorDesconto').value;
         const formaPagamento = document.getElementById('modalFormaPagamento').value;
-        
-        if (!formaPagamento) {
-            mostrarToast('Selecione a forma de pagamento', 'warning');
+
+        if (!formaPagamento) { mostrarToast('Selecione a forma de pagamento', 'warning'); return; }
+
+        if (formaPagamento === 'fiado' && !this.clienteFiadoSelecionado) {
+            mostrarToast('Selecione um cliente para venda fiado!', 'warning');
             return;
         }
-        
+
         let desconto = 0;
-        
         if (tipoDesconto !== 'nenhum' && valorDescontoInput) {
             const valorDesconto = parseFloat(valorDescontoInput) || 0;
-            if (tipoDesconto === 'percentual') {
-                desconto = (subtotal * valorDesconto) / 100;
-            } else {
-                desconto = valorDesconto;
-            }
-            
-            if (desconto > subtotal) {
-                desconto = subtotal;
-            }
+            desconto = tipoDesconto === 'percentual' ? (subtotal * valorDesconto) / 100 : valorDesconto;
+            if (desconto > subtotal) desconto = subtotal;
         }
-        
+
         const total = Math.max(0, subtotal - desconto);
-        
+
         const venda = {
             itens: JSON.stringify(this.carrinho),
-            subtotal: subtotal,
-            desconto: desconto,
-            total: total,
+            subtotal, desconto, total,
             forma_pagamento: formaPagamento,
             mesa_numero: this.mesaAtual.numero,
             data: new Date().toISOString()
         };
 
-        // Incluir dados de fiado se aplicável
         if (formaPagamento === 'fiado' && this.clienteFiadoSelecionado) {
             const cliente = this.app.clientes.getClientes().find(c => c.id === this.clienteFiadoSelecionado);
             venda.cliente_id = this.clienteFiadoSelecionado;
             venda.cliente_nome = cliente ? cliente.nome : '';
         }
-        
+
         const usuario = this.app.auth.getUsuarioLogado();
-        if (usuario) {
-            venda.usuario_id = usuario.id;
-            venda.usuario_nome = usuario.nome;
-        }
-        
+        if (usuario) { venda.usuario_id = usuario.id; venda.usuario_nome = usuario.nome; }
+
         const sucesso = await this.app.vendas.registrar(venda);
-        
-        if (!sucesso) {
-            mostrarToast('Erro ao registrar venda', 'error');
-            return;
-        }
-        
+        if (!sucesso) { mostrarToast('Erro ao registrar venda', 'error'); return; }
+
         // Atualizar estoque
         for (const item of this.carrinho) {
             const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
-            if (produto) {
-                produto.estoque -= item.quantidade;
-                await this.app.produtos.atualizar(produto);
-            }
+            if (produto) { produto.estoque -= item.quantidade; await this.app.produtos.atualizar(produto); }
         }
-        
-        // Gerar PDF do comprovante
-        setTimeout(() => {
-            pdfService.gerarComprovantePDF(venda, this.mesaAtual.numero);
-        }, 500);
+
+        // Gerar comprovante de pagamento
+        setTimeout(() => pdfService.gerarComprovantePDF(venda, this.mesaAtual.numero), 500);
 
         // Atualizar saldo devedor se for fiado
         if (formaPagamento === 'fiado' && this.clienteFiadoSelecionado) {
             try {
                 const { data: clienteAtual } = await supabase
-                    .from('clientes')
-                    .select('saldo_devedor')
-                    .eq('id', this.clienteFiadoSelecionado)
-                    .single();
+                    .from('clientes').select('saldo_devedor').eq('id', this.clienteFiadoSelecionado).single();
                 const saldoAtual = parseFloat(clienteAtual?.saldo_devedor || 0);
-                await supabase.from('clientes').update({
-                    saldo_devedor: saldoAtual + total
-                }).eq('id', this.clienteFiadoSelecionado);
-            } catch (e) {
-                console.error('Erro ao atualizar saldo do cliente:', e);
-            }
+                await supabase.from('clientes').update({ saldo_devedor: saldoAtual + total }).eq('id', this.clienteFiadoSelecionado);
+            } catch (e) { console.error('Erro ao atualizar saldo:', e); }
         }
 
         // Liberar mesa
         const { error } = await supabase.from('mesas').update({
-            status: 'livre',
-            pedido_atual: null,
-            valor_total: 0
+            status: 'livre', pedido_atual: null, valor_total: 0
         }).eq('id', this.mesaAtual.id);
-        
-        if (error) {
-            console.error('❌ ERRO AO LIBERAR MESA:', error);
-            mostrarToast('Erro ao liberar mesa: ' + error.message, 'error');
-            return;
-        }
-        
+
+        if (error) { mostrarToast('Erro ao liberar mesa: ' + error.message, 'error'); return; }
+
         this.fecharModalConta();
         this.carrinho = [];
         const mesaNumero = this.mesaAtual.numero;
         this.mesaAtual = null;
-        
+
         mostrarToast(`Mesa ${mesaNumero} fechada com sucesso!`, 'sucesso');
         await this.carregar();
         this.app.showScreen('mesasScreen');
@@ -631,12 +496,7 @@ export class MesasModule {
 
     finalizarComanda() {
         if (!this.mesaAtual) return;
-        
-        if (this.carrinho.length === 0) {
-            mostrarToast('Comanda vazia!', 'warning');
-            return;
-        }
-        
+        if (this.carrinho.length === 0) { mostrarToast('Comanda vazia!', 'warning'); return; }
         this.mostrarModalFecharConta(this.mesaAtual);
     }
 }
