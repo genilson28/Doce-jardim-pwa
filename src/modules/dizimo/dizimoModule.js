@@ -1,8 +1,8 @@
 // ==================== MÓDULO DE DÍZIMO ====================
 
-import { supabase } from '../config/supabase.js';
-import { mostrarToast } from '../utils/ui.js';
-import { formatarMoeda, formatarDataHora } from '../utils/formatters.js';
+import { supabase } from '../../config/supabase.js';
+import { mostrarToast } from '../../utils/ui.js';
+import { formatarMoeda, formatarDataHora } from '../../utils/formatters.js';
 
 export class DizimoModule {
     constructor(app) {
