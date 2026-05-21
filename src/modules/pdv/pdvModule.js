@@ -1,5 +1,6 @@
 // ==================== MÓDULO PDV ====================
 
+import { supabase } from '../../config/supabase.js';
 import { mostrarToast, setButtonLoading } from '../../utils/ui.js';
 import { gerarComprovantePDF } from '../../services/pdfService.js';
 import { CATEGORIAS } from '../../config/constants.js';
@@ -9,6 +10,7 @@ export class PDVModule {
     constructor(app) {
         this.app = app;
         this.carrinho = [];
+        this.clienteFiadoSelecionado = null;
     }
 
     async carregar() {
@@ -22,6 +24,10 @@ export class PDVModule {
         this.renderizarCategorias();
         this.renderizarProdutos();
         this.atualizarCarrinho();
+
+        // Carregar clientes para fiado
+        await this.app.clientes.carregar();
+        this.renderizarListaClientesFiado();
     }
 
     renderizarCategorias() {
@@ -80,7 +86,6 @@ export class PDVModule {
             const div = document.createElement('div');
             div.className = 'produto-card-pdv';
             
-            // Definir classe de estoque
             let estoqueClass = 'estoque-ok';
             if (produto.estoque === 0) estoqueClass = 'estoque-zero';
             else if (produto.estoque <= 5) estoqueClass = 'estoque-baixo';
@@ -89,18 +94,12 @@ export class PDVModule {
             
             div.innerHTML = `
                 <div class="produto-card-header">
-                    <div class="produto-icon">
-                        ${getIconeCategoria(produto.categoria)}
-                    </div>
-                    <div class="produto-estoque-badge ${estoqueClass}">
-                        ${produto.estoque}
-                    </div>
+                    <div class="produto-icon">${getIconeCategoria(produto.categoria)}</div>
+                    <div class="produto-estoque-badge ${estoqueClass}">${produto.estoque}</div>
                 </div>
                 <div class="produto-card-body">
                     <h4 class="produto-nome">${produto.nome}</h4>
-                    <div class="produto-categoria-tag">
-                        ${produto.categoria}
-                    </div>
+                    <div class="produto-categoria-tag">${produto.categoria}</div>
                 </div>
                 <div class="produto-card-footer">
                     <div class="produto-preco-container">
@@ -134,24 +133,14 @@ export class PDVModule {
 
         container.innerHTML = `
             <div class="pagination-controls">
-                <button class="btn-pagination" 
-                        onclick="app.pdv.paginaAnterior()" 
-                        ${currentPage === 1 ? 'disabled' : ''}
-                        aria-label="Página anterior">
-                    <span class="pagination-arrow">←</span>
-                    <span class="pagination-text">Anterior</span>
+                <button class="btn-pagination" onclick="app.pdv.paginaAnterior()" ${currentPage === 1 ? 'disabled' : ''}>
+                    <span>←</span> Anterior
                 </button>
                 <div class="pagination-info">
-                    <span class="pagination-current">${currentPage}</span>
-                    <span class="pagination-separator">/</span>
-                    <span class="pagination-total">${totalPages}</span>
+                    <span>${currentPage}</span> / <span>${totalPages}</span>
                 </div>
-                <button class="btn-pagination" 
-                        onclick="app.pdv.proximaPagina()" 
-                        ${currentPage === totalPages ? 'disabled' : ''}
-                        aria-label="Próxima página">
-                    <span class="pagination-text">Próxima</span>
-                    <span class="pagination-arrow">→</span>
+                <button class="btn-pagination" onclick="app.pdv.proximaPagina()" ${currentPage === totalPages ? 'disabled' : ''}>
+                    Próxima <span>→</span>
                 </button>
             </div>
         `;
@@ -275,35 +264,95 @@ export class PDVModule {
         document.getElementById('carrinhoTotal').textContent = total.toFixed(2);
     }
 
+    handleDescontoChange() {
+        this.calcularTotal();
+    }
+
+    // ==================== FIADO NO PDV ====================
+
+    handleFormaPagamentoChange() {
+        const forma = document.getElementById('formaPagamento').value;
+        const container = document.getElementById('pdvClienteFiadoContainer');
+        if (forma === 'fiado') {
+            container.style.display = 'block';
+            this.renderizarListaClientesFiado();
+        } else {
+            container.style.display = 'none';
+            this.clienteFiadoSelecionado = null;
+            document.getElementById('pdvClienteFiadoSelecionadoText').textContent = 'Selecione um cliente';
+        }
+    }
+
+    renderizarListaClientesFiado() {
+        const lista = document.getElementById('pdvListaClientesFiado');
+        if (!lista) return;
+
+        const clientes = this.app.clientes.getClientes();
+        if (!clientes || clientes.length === 0) {
+            lista.innerHTML = '<div class="empty-state">Nenhum cliente cadastrado. Vá em Clientes para cadastrar.</div>';
+            return;
+        }
+
+        lista.innerHTML = clientes.map(c => `
+            <div class="select-pesquisavel-item"
+                 data-id="${c.id}"
+                 data-nome="${(c.nome || '').replace(/'/g, "\\'")}"
+                 onclick="app.pdv.selecionarClienteFiado(${c.id}, '${(c.nome || '').replace(/'/g, "\\'")}')">
+                <strong>${c.nome || 'Sem nome'}</strong>
+                ${c.telefone ? `<small>${c.telefone}</small>` : ''}
+                <small style="color:#e57373;">Saldo: R$ ${parseFloat(c.saldo_devedor || 0).toFixed(2)}</small>
+            </div>
+        `).join('');
+    }
+
+    toggleClienteFiado() {
+        const dropdown = document.getElementById('pdvSelectClienteFiadoDropdown');
+        dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+    }
+
+    pesquisarClienteFiado(termo) {
+        const lista = document.getElementById('pdvListaClientesFiado');
+        const itens = lista.querySelectorAll('.select-pesquisavel-item');
+        termo = termo.toLowerCase().trim();
+        itens.forEach(item => {
+            const nome = item.dataset.nome.toLowerCase();
+            item.style.display = nome.includes(termo) ? 'block' : 'none';
+        });
+    }
+
+    selecionarClienteFiado(id, nome) {
+        this.clienteFiadoSelecionado = id;
+        document.getElementById('pdvClienteFiadoSelecionadoText').textContent = nome;
+        document.getElementById('pdvSelectClienteFiadoDropdown').style.display = 'none';
+        document.getElementById('pdvSearchClienteFiado').value = '';
+        document.querySelectorAll('#pdvListaClientesFiado .select-pesquisavel-item').forEach(i => i.classList.remove('selected'));
+        const item = document.querySelector(`#pdvListaClientesFiado [data-id="${id}"]`);
+        if (item) item.classList.add('selected');
+    }
+
+    // ==================== FINALIZAR VENDA ====================
+
     async finalizarVenda() {
         if (this.carrinho.length === 0) {
             mostrarToast('Carrinho vazio!', 'warning');
             return;
         }
 
-        setButtonLoading('finalizarVenda', true, 'Finalizar Venda');
-
         const formaPagamento = document.getElementById('formaPagamento').value;
-        const subtotal = parseFloat(document.getElementById('subtotalCarrinho').textContent);
-        const desconto = parseFloat(document.getElementById('valorDescontoAplicado')?.textContent || 0);
-        const total = parseFloat(document.getElementById('carrinhoTotal').textContent);
 
         // Validar cliente para venda fiado
-        let clienteSelecionadoPdv = null;
         if (formaPagamento === 'fiado') {
-            const clientes = this.app.clientes.getClientes();
-            if (clientes.length === 0) {
-                mostrarToast('Nenhum cliente cadastrado. Cadastre em Clientes antes de vender fiado.', 'warning');
-                setButtonLoading('finalizarVenda', false, 'Finalizar Venda');
-                return;
-            }
-            const nomeDefault = clientes[0].nome || '';
-            clienteSelecionadoPdv = clientes[0];
-            if (!confirm(`Confirmar venda fiado para "${nomeDefault}" no valor de R$ ${total.toFixed(2)}?`)) {
-                setButtonLoading('finalizarVenda', false, 'Finalizar Venda');
+            if (!this.clienteFiadoSelecionado) {
+                mostrarToast('Selecione um cliente para venda fiado!', 'warning');
                 return;
             }
         }
+
+        setButtonLoading('finalizarVenda', true, 'Finalizar Venda');
+
+        const subtotal = parseFloat(document.getElementById('subtotalCarrinho').textContent);
+        const desconto = parseFloat(document.getElementById('valorDescontoAplicado')?.textContent || 0);
+        const total = parseFloat(document.getElementById('carrinhoTotal').textContent);
 
         const venda = {
             itens: JSON.stringify(this.carrinho),
@@ -314,9 +363,10 @@ export class PDVModule {
             data: new Date().toISOString()
         };
 
-        if (formaPagamento === 'fiado' && clienteSelecionadoPdv) {
-            venda.cliente_id = clienteSelecionadoPdv.id;
-            venda.cliente_nome = clienteSelecionadoPdv.nome;
+        if (formaPagamento === 'fiado' && this.clienteFiadoSelecionado) {
+            const cliente = this.app.clientes.getClientes().find(c => c.id === this.clienteFiadoSelecionado);
+            venda.cliente_id = this.clienteFiadoSelecionado;
+            venda.cliente_nome = cliente ? cliente.nome : '';
         }
 
         const usuario = this.app.auth.getUsuarioLogado();
@@ -337,17 +387,17 @@ export class PDVModule {
             }
 
             // Atualizar saldo devedor do cliente se for fiado
-            if (formaPagamento === 'fiado' && clienteSelecionadoPdv) {
+            if (formaPagamento === 'fiado' && this.clienteFiadoSelecionado) {
                 try {
                     const { data: clienteAtual } = await supabase
                         .from('clientes')
                         .select('saldo_devedor')
-                        .eq('id', clienteSelecionadoPdv.id)
+                        .eq('id', this.clienteFiadoSelecionado)
                         .single();
                     const saldoAtual = parseFloat(clienteAtual?.saldo_devedor || 0);
                     await supabase.from('clientes').update({
                         saldo_devedor: saldoAtual + total
-                    }).eq('id', clienteSelecionadoPdv.id);
+                    }).eq('id', this.clienteFiadoSelecionado);
                 } catch (e) {
                     console.error('Erro ao atualizar saldo do cliente:', e);
                 }
@@ -357,11 +407,16 @@ export class PDVModule {
                 gerarComprovantePDF(venda);
             }, 500);
 
+            // Resetar carrinho e formulário
             this.carrinho = [];
+            this.clienteFiadoSelecionado = null;
             this.atualizarCarrinho();
             document.getElementById('tipoDesconto').value = 'nenhum';
             document.getElementById('valorDesconto').value = '';
             document.getElementById('valorDesconto').style.display = 'none';
+            document.getElementById('formaPagamento').value = 'dinheiro';
+            document.getElementById('pdvClienteFiadoContainer').style.display = 'none';
+            document.getElementById('pdvClienteFiadoSelecionadoText').textContent = 'Selecione um cliente';
             this.calcularTotal();
             await this.carregar();
 
