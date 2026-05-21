@@ -921,6 +921,13 @@
                             <p class="stat-valor" style="color: #FF9800;">R$ <span id="dizimoValor">0.00</span></p>
                         </div>
                     </div>
+                    <div class="stat-card-fin" style="border-left: 4px solid #9C27B0;">
+                        <div class="stat-icone">📝</div>
+                        <div class="stat-info">
+                            <h4>Total em Fiado</h4>
+                            <p class="stat-valor" style="color: #9C27B0;">R$ <span id="dizimoTotalFiado">0.00</span></p>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-card">
@@ -1181,9 +1188,21 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
-    <!-- Aplicação Principal (MODULAR) - cache-bust para evitar SW corrompido -->
-    <script type="module" src="./src/app.js?v=2"></script>
+    <!-- Limpa cache antigo antes de carregar o app -->
+    <script>
+    (async function clearSWCache() {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) { await r.unregister(); }
+        const caches = await caches.keys();
+        await Promise.all(caches.map(c => caches.delete(c)));
+        console.log('Cache e SW antigos limpos');
+      }
+    })();
+    </script>
+    
+    <!-- Aplicação Principal (MODULAR) -->
+    <script type="module" src="./src/app.js?v=3"></script>
 </body>
 
 </html>
-
