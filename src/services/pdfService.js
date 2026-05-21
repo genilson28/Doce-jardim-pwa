@@ -19,7 +19,7 @@ export function gerarComprovantePDF(venda, mesaNumero = null) {
         doc.setTextColor(0, 0, 0);
         
         // Cabeçalho
-        doc.text('🍰 DOCE JARDIM 🍰', 105, 15, { align: 'center' });
+        doc.text(' DOCE JARDIM ', 105, 15, { align: 'center' });
         doc.setFontSize(10);
         doc.setFont(undefined, 'normal');
         doc.text('Comprovante de Venda', 105, 22, { align: 'center' });
