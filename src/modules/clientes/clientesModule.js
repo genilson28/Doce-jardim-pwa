@@ -187,7 +187,79 @@ export class ClientesModule {
         }
     }
 
-    abrirPagamento(clienteId) {
+    // ==================== CONSUMO / EXTRATO ====================
+
+    /**
+     * Busca as vendas registradas como "fiado" para um cliente,
+     * usadas para montar o extrato de itens consumidos no modal
+     * de pagamento.
+     */
+    async buscarConsumoCliente(clienteId) {
+        try {
+            const { data, error } = await supabase
+                .from('vendas')
+                .select('*')
+                .eq('cliente_id', clienteId)
+                .eq('forma_pagamento', 'fiado')
+                .order('data', { ascending: false });
+
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('Erro ao buscar consumo do cliente:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Renderiza o extrato de consumo (itens por venda) dentro do
+     * modal de pagamento, no elemento #pagClienteExtrato.
+     */
+    async renderizarExtratoConsumo(clienteId) {
+        const extratoEl = document.getElementById('pagClienteExtrato');
+        if (!extratoEl) return;
+
+        extratoEl.innerHTML = '<div class="empty-state">Carregando consumo...</div>';
+
+        const vendas = await this.buscarConsumoCliente(clienteId);
+
+        if (vendas.length === 0) {
+            extratoEl.innerHTML = '<div class="empty-state">Nenhum consumo registrado</div>';
+            return;
+        }
+
+        extratoEl.innerHTML = vendas.map(venda => {
+            let itens = [];
+            try {
+                itens = JSON.parse(venda.itens || '[]');
+            } catch (e) {
+                itens = [];
+            }
+
+            const itensHtml = itens.map(item => `
+                <div class="extrato-item-linha">
+                    <span>${item.quantidade}x ${item.nome}</span>
+                    <span>R$ ${((item.preco || 0) * item.quantidade).toFixed(2)}</span>
+                </div>
+            `).join('');
+
+            return `
+                <div class="extrato-venda">
+                    <div class="extrato-venda-header">
+                        <small>${formatarDataHora(venda.data)}</small>
+                        <strong>R$ ${(venda.total || 0).toFixed(2)}</strong>
+                    </div>
+                    <div class="extrato-venda-itens">
+                        ${itensHtml || '<div class="extrato-item-linha"><span>Sem itens registrados</span></div>'}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // ==================== PAGAMENTO ====================
+
+    async abrirPagamento(clienteId) {
         const cliente = this.clientes.find(c => c.id === clienteId);
         if (!cliente) return;
 
@@ -199,6 +271,9 @@ export class ClientesModule {
         const modal = document.getElementById('modalPagamentoCliente');
         modal.classList.add('active');
         modal.style.display = 'flex';
+
+        // Carrega o extrato de itens consumidos (fiado) sem travar a abertura do modal
+        this.renderizarExtratoConsumo(clienteId);
     }
 
     fecharModalPagamento() {
