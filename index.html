@@ -194,6 +194,56 @@
     .modal-actions button {
         flex: 1;
     }
+
+    /* ==================== EXTRATO DE CONSUMO (MODAL PAGAMENTO CLIENTE) ==================== */
+    .extrato-cliente-container {
+        margin: 15px 0;
+    }
+
+    .extrato-cliente-container h4 {
+        margin: 0 0 8px 0;
+        font-size: 0.95em;
+        color: #5D4E37;
+    }
+
+    .extrato-lista {
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid #E8DCC4;
+        border-radius: 8px;
+        padding: 8px;
+        background: #FAF7F0;
+    }
+
+    .extrato-venda {
+        border-bottom: 1px solid #E8DCC4;
+        padding: 6px 4px;
+    }
+
+    .extrato-venda:last-child {
+        border-bottom: none;
+    }
+
+    .extrato-venda-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+        font-size: 0.9em;
+        color: #5D4E37;
+    }
+
+    .extrato-venda-itens {
+        padding-left: 8px;
+    }
+
+    .extrato-item-linha {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.82em;
+        color: #8B7355;
+        padding: 2px 0;
+    }
     </style>
 </head>
 <body>
@@ -1026,6 +1076,15 @@
             <p><strong>Cliente:</strong> <span id="pagClienteNome"></span></p>
             <p><strong>Saldo devedor atual:</strong> R$ <span id="pagSaldoAtual">0.00</span></p>
             <input type="hidden" id="pagClienteId">
+
+            <!-- Extrato de consumo (itens fiado) -->
+            <div class="extrato-cliente-container">
+                <h4>📋 Consumo (fiado)</h4>
+                <div id="pagClienteExtrato" class="extrato-lista">
+                    <div class="empty-state">Carregando consumo...</div>
+                </div>
+            </div>
+
             <div class="form-group" style="margin-top: 15px;">
                 <label>Valor do Pagamento (R$) *</label>
                 <input type="number" id="pagValor" min="0.01" step="0.01" placeholder="0.00">
