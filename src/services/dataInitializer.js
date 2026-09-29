@@ -3,28 +3,6 @@
 import { supabase } from '../config/supabase.js';
 
 export class DataInitializer {
-    // Hash da senha '123456'
-    ADMIN_PASSWORD_HASH = '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92';
-
-    async criarUsuarioAdmin() {
-        try {
-            const { error } = await supabase.from('usuarios').insert([{
-                nome: 'Administrador',
-                login: 'admin',
-                senha: this.ADMIN_PASSWORD_HASH,
-                tipo: 'administrador'
-            }]);
-            
-            if (error && error.code !== '23505') throw error;
-            
-            console.log('✅ Usuário admin pronto.');
-            return true;
-        } catch (error) {
-            console.error('❌ Erro ao criar usuário admin:', error);
-            return false;
-        }
-    }
-
     async criarProdutosIniciais() {
         const produtos = [
             { nome: "Café Expresso", preco: 5.00, estoque: 50, categoria: "bebidas" },
@@ -113,14 +91,7 @@ export class DataInitializer {
             // Só cria os dados iniciais quando a consulta deu certo e a tabela está
             // realmente vazia. Antes, um erro de rede/permissão era lido como "vazia"
             // e duplicava produtos e mesas.
-            const { data: usuarios, error: erroUsuarios } = await supabase
-                .from('usuarios')
-                .select('id')
-                .limit(1);
-            
-            if (!erroUsuarios && (!usuarios || usuarios.length === 0)) {
-                await this.criarUsuarioAdmin();
-            }
+            // Usuários são criados só pela tela de Usuários (Edge Function admin-usuarios).
 
             const { data: produtos, error: erroProdutos } = await supabase
                 .from('produto')

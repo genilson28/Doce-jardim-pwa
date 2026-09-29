@@ -3,7 +3,6 @@ import { supabase } from './config/supabase.js';
 import { CATEGORIAS_EMOJIS } from './config/constants.js';
 import { mostrarToast, setButtonLoading, handleSupabaseError } from './utils/ui.js';
 import { formatarMoeda, formatarDataHora } from './utils/formatters.js';
-import { hashPassword } from './utils/security.js';
 import { connectionService } from './services/connectionService.js';
 import { offlineDB } from './services/offlineDB.js';
 import { DataInitializer } from './services/dataInitializer.js';
@@ -272,9 +271,9 @@ class DoceJardimApp {
         }
     }
 
-    logout() {
+    async logout() {
         if (confirm('Deseja realmente sair do sistema?')) {
-            localStorage.removeItem('usuarioLogado');
+            await this.auth.sair();
             this.usuarioAtual = null;
             this.showScreen('loginScreen');
             mostrarToast('Logout realizado com sucesso', 'success');

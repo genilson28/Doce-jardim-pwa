@@ -1,9 +1,27 @@
 // ==================== MÓDULO DE USUÁRIOS ====================
 
 import { supabase } from '../../config/supabase.js';
-import { hashPassword, handleSupabaseError } from '../../utils/security.js';
+import { handleSupabaseError } from '../../utils/security.js';
 import { mostrarToast, setButtonLoading } from '../../utils/ui.js';
 import { formatarDataHoraCorreta } from '../../utils/formatters.js';
+
+
+// Tudo que mexe em login/senha passa pela Edge Function admin-usuarios
+async function adminUsuarios(action, dados = {}) {
+    const { data, error } = await supabase.functions.invoke('admin-usuarios', {
+        body: { action, ...dados }
+    });
+    if (error) {
+        let msg = error.message;
+        try {
+            const corpo = await error.context?.json?.();
+            if (corpo?.error) msg = corpo.error;
+        } catch (_) { /* mantém a mensagem padrão */ }
+        throw new Error(msg);
+    }
+    if (!data?.success) throw new Error(data?.error || 'Erro desconhecido');
+    return data;
+}
 
 export class UsuariosModule {
     constructor(app) {
@@ -74,6 +92,7 @@ export class UsuariosModule {
                     <h4>${icone} ${usuario.nome}</h4>
                     <p><strong>Login:</strong> ${usuario.login} | <strong>Tipo:</strong> ${tipoTexto}</p>
                     <p style="font-size: 0.85em; color: #999;"><strong>Último acesso:</strong> ${ultimoAcesso}</p>
+                    ${usuario.auth_id ? '' : '<p style="font-size: 0.85em; color: #d97706;"><strong>⚠️ Sem senha definida:</strong> clique em Editar e defina uma senha para liberar o acesso.</p>'}
                 </div>
                 <div>
                     <button onclick="app.usuarios.editar(${usuario.id})">✏️ Editar</button>
@@ -102,27 +121,12 @@ export class UsuariosModule {
                 return;
             }
             
-            const { data: existente } = await supabase
-                .from('usuarios')
-                .select('id')
-                .eq('login', login)
-                .limit(1);
-            
-            if (existente && existente.length > 0) {
-                mostrarToast('Login já existe! Escolha outro.', 'error');
+            if (senha.length < 6) {
+                mostrarToast('A senha deve ter no mínimo 6 caracteres', 'warning');
                 return;
             }
-            
-            const hashedPassword = await hashPassword(senha);
-            const { error } = await supabase.from('usuarios').insert([{
-                nome,
-                login,
-                senha: hashedPassword,
-                tipo,
-                ultimo_acesso: null
-            }]);
-            
-            if (error) throw error;
+
+            await adminUsuarios('criar', { nome, login, senha, tipo });
             
             document.getElementById('usuarioNome').value = '';
             document.getElementById('usuarioLogin').value = '';
@@ -133,7 +137,7 @@ export class UsuariosModule {
             mostrarToast(`Usuário "${nome}" adicionado com sucesso!`, 'sucesso');
         } catch (error) {
             console.error('❌ Erro ao adicionar usuário:', error);
-            mostrarToast(handleSupabaseError(error), 'error');
+            mostrarToast(error.message || handleSupabaseError(error), 'error');
         } finally {
             setButtonLoading('adicionarUsuario', false, 'Adicionar Usuário');
         }
@@ -167,25 +171,22 @@ export class UsuariosModule {
         }
         
         try {
-            const dadosAtualizar = { nome, login, tipo };
-            
-            if (senha.trim() !== '') {
-                dadosAtualizar.senha = await hashPassword(senha);
+            if (senha.trim() !== '' && senha.length < 6) {
+                mostrarToast('A senha deve ter no mínimo 6 caracteres', 'warning');
+                return;
             }
-            
-            const { error } = await supabase
-                .from('usuarios')
-                .update(dadosAtualizar)
-                .eq('id', id);
-            
-            if (error) throw error;
+
+            await adminUsuarios('editar', {
+                id, nome, login, tipo,
+                senha: senha.trim() !== '' ? senha : undefined
+            });
             
             await this.listar();
             this.fecharModalEdicao();
             mostrarToast('Usuário atualizado!', 'sucesso');
         } catch (error) {
             console.error('❌ Erro ao atualizar:', error);
-            mostrarToast(handleSupabaseError(error), 'error');
+            mostrarToast(error.message || handleSupabaseError(error), 'error');
         }
     }
 
@@ -208,14 +209,13 @@ export class UsuariosModule {
         if (!confirm(`Deseja excluir "${usuario.nome}"?`)) return;
         
         try {
-            const { error } = await supabase.from('usuarios').delete().eq('id', usuarioId);
-            if (error) throw error;
+            await adminUsuarios('excluir', { id: usuarioId });
             
             await this.listar();
             mostrarToast('Usuário excluído!', 'sucesso');
         } catch (error) {
             console.error('❌ Erro ao excluir:', error);
-            mostrarToast(handleSupabaseError(error), 'error');
+            mostrarToast(error.message || handleSupabaseError(error), 'error');
         }
     }
 

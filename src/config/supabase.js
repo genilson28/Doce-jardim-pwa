@@ -1,5 +1,10 @@
-// ==================== CONFIGURAÇÃO SUPABASE ====================
-const SUPABASE_URL = 'https://utykuriccvvhitlrdqcw.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0eWt1cmljY3Z2aGl0bHJkcWN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA4MTA0MTksImV4cCI6MjA3NjM4NjQxOX0.KWbJdcKAf_6UFxTiFL-Qxzd0_wnxLueNblDLMfeaqIc';
+﻿// ==================== CONFIGURAÇÃO SUPABASE ====================
+// Projeto NOVO do Doce Jardim (separado do sistema pwa_).
+// Troque os dois valores abaixo pelos do projeto novo:
+//   Supabase > Project Settings > API > Project URL / anon public key
+const SUPABASE_URL = 'https://weuefulhpeperuvkqbkl.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Vlhq5i87XG4kxS7UEVZAGA_13mbmfac';
 
-export const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true }
+});
