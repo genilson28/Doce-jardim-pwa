@@ -1,4 +1,5 @@
 // ==================== IMPORTS ====================
+import './utils/silenciarLogs.js'; // precisa ser o primeiro
 import { supabase } from './config/supabase.js';
 import { CATEGORIAS_EMOJIS } from './config/constants.js';
 import { mostrarToast, setButtonLoading, handleSupabaseError } from './utils/ui.js';
@@ -75,14 +76,14 @@ class DoceJardimApp {
             console.warn('⚠️ Banco offline indisponível:', error);
         }
 
+        // Verificar login primeiro (a tela só aparece depois disso)
+        await this.auth.verificarLogin();
+
         // Inicializar dados
         await this.dataInitializer.init();
         
         // Inicializar Service Worker
         await this.serviceWorkerManager.init();
-        
-        // Verificar login
-        this.auth.verificarLogin();
 
         // Enviar vendas feitas sem internet: agora e sempre que a conexão voltar
         this.vendas.sincronizarPendentes();
