@@ -39,27 +39,21 @@ export function setButtonLoading(buttonId, isLoading, originalText = '') {
 }
 
 /**
- * Trata erros do Supabase e exibe mensagens apropriadas
+ * Traduz erros do Supabase em uma mensagem em português.
+ * Retorna o TEXTO; quem chama mostra com mostrarToast(...).
+ * (Antes mostrava um toast e devolvia "false", o que gerava um 2º aviso escrito "false".)
  */
 export function handleSupabaseError(error, mensagemPadrao = 'Erro ao processar operação') {
     console.error('❌ Erro Supabase:', error);
-    
-    // Códigos de erro comuns do PostgreSQL/Supabase
-    if (error.code === '23505') {
-        mostrarToast('Este registro já existe no sistema', 'error');
-    } else if (error.code === '23503') {
-        mostrarToast('Não é possível excluir. Existem registros relacionados', 'error');
-    } else if (error.code === '42P01') {
-        mostrarToast('Tabela não encontrada no banco de dados', 'error');
-    } else if (error.code === '42703') {
-        mostrarToast('Campo não encontrado na tabela', 'error');
-    } else if (error.code === 'PGRST116') {
-        mostrarToast('Nenhum dado encontrado', 'warning');
-    } else if (error.message) {
-        mostrarToast(error.message, 'error');
-    } else {
-        mostrarToast(mensagemPadrao, 'error');
+
+    if (!error) return mensagemPadrao;
+
+    switch (error.code) {
+        case '23505': return 'Este registro já existe no sistema';
+        case '23503': return 'Não é possível excluir. Existem registros relacionados';
+        case '42P01': return 'Tabela não encontrada no banco de dados';
+        case '42703': return 'Campo não encontrado na tabela';
+        case 'PGRST116': return 'Nenhum dado encontrado';
+        default: return error.message || mensagemPadrao;
     }
-    
-    return false;
 }

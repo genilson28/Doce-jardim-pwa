@@ -107,30 +107,36 @@ export class DataInitializer {
 
     async inicializarDados() {
         try {
-            const { data: usuarios } = await supabase
+            // Sem internet não há o que verificar
+            if (!navigator.onLine) return false;
+
+            // Só cria os dados iniciais quando a consulta deu certo e a tabela está
+            // realmente vazia. Antes, um erro de rede/permissão era lido como "vazia"
+            // e duplicava produtos e mesas.
+            const { data: usuarios, error: erroUsuarios } = await supabase
                 .from('usuarios')
-                .select('*')
+                .select('id')
                 .limit(1);
             
-            if (!usuarios || usuarios.length === 0) {
+            if (!erroUsuarios && (!usuarios || usuarios.length === 0)) {
                 await this.criarUsuarioAdmin();
             }
 
-            const { data: produtos } = await supabase
+            const { data: produtos, error: erroProdutos } = await supabase
                 .from('produto')
-                .select('*')
+                .select('id')
                 .limit(1);
             
-            if (!produtos || produtos.length === 0) {
+            if (!erroProdutos && (!produtos || produtos.length === 0)) {
                 await this.criarProdutosIniciais();
             }
 
-            const { data: mesas } = await supabase
+            const { data: mesas, error: erroMesas } = await supabase
                 .from('mesas')
-                .select('*')
+                .select('id')
                 .limit(1);
             
-            if (!mesas || mesas.length === 0) {
+            if (!erroMesas && (!mesas || mesas.length === 0)) {
                 await this.criarMesasIniciais();
             }
 

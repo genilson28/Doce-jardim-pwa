@@ -247,10 +247,13 @@ export class PDVModule {
             const valorDesconto = parseFloat(valorDescontoInput.value) || 0;
             
             if (tipoDesconto === 'percentual') {
-                desconto = (subtotal * valorDesconto) / 100;
+                desconto = (subtotal * Math.min(Math.max(valorDesconto, 0), 100)) / 100;
             } else {
-                desconto = valorDesconto;
+                desconto = Math.max(valorDesconto, 0);
             }
+
+            // O desconto nunca pode ser maior que o subtotal (evita total negativo)
+            desconto = Math.min(desconto, subtotal);
             
             if (desconto > 0) {
                 descontoAplicadoDiv.style.display = 'block';
@@ -333,6 +336,17 @@ export class PDVModule {
     // ==================== FINALIZAR VENDA ====================
 
     async finalizarVenda() {
+        if (this.finalizando) return; // evita venda duplicada por clique duplo
+        this.finalizando = true;
+        try {
+            await this._finalizarVenda();
+        } finally {
+            this.finalizando = false;
+            setButtonLoading('finalizarVenda', false, 'Finalizar Venda');
+        }
+    }
+
+    async _finalizarVenda() {
         if (this.carrinho.length === 0) {
             mostrarToast('Carrinho vazio!', 'warning');
             return;
@@ -375,19 +389,24 @@ export class PDVModule {
             venda.usuario_nome = usuario.nome;
         }
 
-        const sucesso = await this.app.vendas.registrar(venda);
+        const resultado = await this.app.vendas.registrar(venda);
+        const sucesso = !!resultado;
+        // 'offline' = venda guardada no aparelho; estoque e fiado vão ao servidor no envio
+        const salvaOffline = resultado === 'offline';
 
         if (sucesso) {
-            for (const item of this.carrinho) {
-                const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
-                if (produto) {
-                    produto.estoque -= item.quantidade;
-                    await this.app.produtos.atualizar(produto);
+            if (!salvaOffline) {
+                for (const item of this.carrinho) {
+                    const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
+                    if (produto) {
+                        produto.estoque -= item.quantidade;
+                        await this.app.produtos.atualizar(produto);
+                    }
                 }
             }
 
             // Atualizar saldo devedor do cliente se for fiado
-            if (formaPagamento === 'fiado' && this.clienteFiadoSelecionado) {
+            if (!salvaOffline && formaPagamento === 'fiado' && this.clienteFiadoSelecionado) {
                 try {
                     const { data: clienteAtual } = await supabase
                         .from('clientes')

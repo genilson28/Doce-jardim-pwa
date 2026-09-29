@@ -5,6 +5,7 @@ import { mostrarToast, setButtonLoading, handleSupabaseError } from '../../utils
 import { formatarMoeda } from '../../utils/formatters.js';
 import { offlineDB } from '../../services/offlineDB.js';
 import { connectionService } from '../../services/connectionService.js';
+import { dataInitializer } from '../../services/dataInitializer.js';
 
 export class ProdutosModule {
     constructor(app) {
@@ -25,7 +26,9 @@ export class ProdutosModule {
                 if (error) throw error;
                 data = onlineData;
                 
-                if (!data || data.length === 0) {
+                // Cadastra os produtos de exemplo no máximo 1 vez (evita laço infinito)
+                if ((!data || data.length === 0) && !this._seedTentado) {
+                    this._seedTentado = true;
                     await dataInitializer.criarProdutosIniciais();
                     return this.carregar();
                 }

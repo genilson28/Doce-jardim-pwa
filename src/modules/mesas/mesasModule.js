@@ -5,21 +5,24 @@ import { mostrarToast, setButtonLoading, handleSupabaseError } from '../../utils
 import { formatarMoeda, formatarDataHora } from '../../utils/formatters.js';
 import { pdfService } from '../../services/pdfService.js';
 import { CATEGORIAS_EMOJIS } from '../../config/constants.js';
+import { connectionService } from '../../services/connectionService.js';
 
+// Os ids precisam ser iguais aos cadastrados em produto.categoria
+// (antes "sobremesas"/"doces" nunca batiam e "bolos"/"bomboniere" nem apareciam)
 const CATEGORIAS = [
     { id: 'todas', nome: 'Todos' },
     { id: 'bebidas', nome: 'Bebidas' },
     { id: 'lanches', nome: 'Lanches' },
-    { id: 'sobremesas', nome: 'Sobremesas' },
-    { id: 'doces', nome: 'Doces' },
     { id: 'salgados', nome: 'Salgados' },
-    { id: 'outros', nome: 'Outros' }
+    { id: 'bolos', nome: 'Bolos' },
+    { id: 'sobremesa', nome: 'Sobremesas' },
+    { id: 'bomboniere', nome: 'Bomboniere' }
 ];
 
 function getIconeCategoria(categoria) {
     const icones = {
-        'bebidas': '🥤', 'lanches': '🍔', 'sobremesas': '🍰',
-        'doces': '🍬', 'salgados': '🥨', 'outros': '📦'
+        'bebidas': '🥤', 'lanches': '🥪', 'salgados': '🥟',
+        'bolos': '🍰', 'sobremesa': '🍨', 'bomboniere': '🍬'
     };
     return icones[categoria] || '📦';
 }
@@ -417,6 +420,13 @@ export class MesasModule {
     }
 
     async confirmarFechamento() {
+        // A mesa é liberada direto no servidor: sem internet a venda seria salva
+        // no aparelho e a mesa continuaria ocupada (risco de cobrar duas vezes).
+        if (!connectionService.getStatus()) {
+            mostrarToast('Sem internet: não é possível fechar a mesa agora', 'warning');
+            return;
+        }
+
         const subtotal = this.mesaAtual.valor_total || 0;
         const tipoDesconto = document.getElementById('modalTipoDesconto').value;
         const valorDescontoInput = document.getElementById('modalValorDesconto').value;
@@ -455,20 +465,25 @@ export class MesasModule {
         const usuario = this.app.auth.getUsuarioLogado();
         if (usuario) { venda.usuario_id = usuario.id; venda.usuario_nome = usuario.nome; }
 
-        const sucesso = await this.app.vendas.registrar(venda);
-        if (!sucesso) { mostrarToast('Erro ao registrar venda', 'error'); return; }
+        const resultado = await this.app.vendas.registrar(venda);
+        if (!resultado) { mostrarToast('Erro ao registrar venda', 'error'); return; }
+        // 'offline' = servidor recusou e a venda ficou guardada no aparelho;
+        // estoque e fiado serão aplicados quando ela for enviada
+        const salvaOffline = resultado === 'offline';
 
         // Atualizar estoque
-        for (const item of this.carrinho) {
-            const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
-            if (produto) { produto.estoque -= item.quantidade; await this.app.produtos.atualizar(produto); }
+        if (!salvaOffline) {
+            for (const item of this.carrinho) {
+                const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
+                if (produto) { produto.estoque -= item.quantidade; await this.app.produtos.atualizar(produto); }
+            }
         }
 
         // Gerar comprovante de pagamento
         setTimeout(() => pdfService.gerarComprovantePDF(venda, this.mesaAtual.numero), 500);
 
         // Atualizar saldo devedor se for fiado
-        if (formaPagamento === 'fiado' && this.clienteFiadoSelecionado) {
+        if (!salvaOffline && formaPagamento === 'fiado' && this.clienteFiadoSelecionado) {
             try {
                 const { data: clienteAtual } = await supabase
                     .from('clientes').select('saldo_devedor').eq('id', this.clienteFiadoSelecionado).single();

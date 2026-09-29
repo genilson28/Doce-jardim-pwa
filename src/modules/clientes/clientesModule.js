@@ -204,7 +204,8 @@ export class ClientesModule {
                 .order('data', { ascending: false });
 
             if (error) throw error;
-            return data || [];
+            // Vendas canceladas não entram no extrato do cliente
+            return (data || []).filter(v => !v.cancelada);
         } catch (error) {
             console.error('Erro ao buscar consumo do cliente:', error);
             return [];

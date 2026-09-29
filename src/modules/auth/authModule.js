@@ -20,10 +20,16 @@ export class AuthModule {
         if (usuarioSalvo) {
             try {
                 this.usuarioLogado = JSON.parse(usuarioSalvo);
+
+                // Sessões antigas guardavam o hash da senha no aparelho: remove
+                if (this.usuarioLogado && 'senha' in this.usuarioLogado) {
+                    delete this.usuarioLogado.senha;
+                    localStorage.setItem('usuarioLogado', JSON.stringify(this.usuarioLogado));
+                }
                 
                 // Aguarda o DOM estar totalmente carregado
                 requestAnimationFrame(() => {
-                    this.app.showScreen('dashboardScreen');
+                    this.app.showScreen(this.app.telaInicialSolicitada || 'dashboardScreen');
                     this.configurarPermissoes();
                     console.log('✅ Usuário já logado:', this.usuarioLogado.nome);
                 });
@@ -60,7 +66,9 @@ export class AuthModule {
             if (error) throw error;
 
             if (usuarios && usuarios.length > 0) {
-                this.usuarioLogado = usuarios[0];
+                // Não guarda o hash da senha no aparelho
+                const { senha: _senha, ...usuarioSemSenha } = usuarios[0];
+                this.usuarioLogado = usuarioSemSenha;
                 
                 // Salvar no localStorage
                 localStorage.setItem('usuarioLogado', JSON.stringify(this.usuarioLogado));

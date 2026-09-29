@@ -57,7 +57,7 @@ export class RelatorioFinanceiroModule {
 
         const vendasFiltradas = this.app.vendas.vendas.filter(v => {
             const dataVenda = new Date(v.data);
-            return dataVenda >= dataInicio && dataVenda <= dataFim;
+            return !v.cancelada && dataVenda >= dataInicio && dataVenda <= dataFim;
         });
 
         this.calcularEstatisticas(comprasFiltradas, vendasFiltradas, periodo);
@@ -87,7 +87,7 @@ export class RelatorioFinanceiroModule {
 
         const vendasFiltradas = this.app.vendas.vendas.filter(v => {
             const dataVenda = new Date(v.data);
-            return dataVenda >= inicio && dataVenda <= fim;
+            return !v.cancelada && dataVenda >= inicio && dataVenda <= fim;
         });
 
         this.calcularEstatisticas(comprasFiltradas, vendasFiltradas, 'personalizado');

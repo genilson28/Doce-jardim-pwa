@@ -4,7 +4,8 @@ import { CATEGORIAS_EMOJIS } from './config/constants.js';
 import { mostrarToast, setButtonLoading, handleSupabaseError } from './utils/ui.js';
 import { formatarMoeda, formatarDataHora } from './utils/formatters.js';
 import { hashPassword } from './utils/security.js';
-import { ConnectionService } from './services/connectionService.js';
+import { connectionService } from './services/connectionService.js';
+import { offlineDB } from './services/offlineDB.js';
 import { DataInitializer } from './services/dataInitializer.js';
 import { serviceWorkerManager } from './services/serviceWorkerManager.js';
 import { Pagination } from './utils/pagination.js';
@@ -32,12 +33,18 @@ class DoceJardimApp {
         this.telaAtual = 'loginScreen';
         this.deferredPrompt = null;
 
+        // Atalhos do PWA (?screen=pdv / ?screen=mesas) abrem direto na tela pedida
+        const telas = { pdv: 'pdvScreen', mesas: 'mesasScreen' };
+        const pedida = new URLSearchParams(window.location.search).get('screen');
+        this.telaInicialSolicitada = telas[pedida] || null;
+
         // Inicializar utilitários
         this.pagination = new Pagination();
         this.filtering = new Filtering();
 
         // Inicializar serviços
-        this.connectionService = new ConnectionService();
+        // Usa a mesma instância dos módulos (evita ouvintes duplicados)
+        this.connectionService = connectionService;
         this.dataInitializer = new DataInitializer();
         this.serviceWorkerManager = serviceWorkerManager;
 
@@ -62,6 +69,13 @@ class DoceJardimApp {
     async init() {
         console.log('🚀 Inicializando Doce Jardim PDV...');
         
+        // Banco offline (vendas pendentes e cache de produtos)
+        try {
+            await offlineDB.init();
+        } catch (error) {
+            console.warn('⚠️ Banco offline indisponível:', error);
+        }
+
         // Inicializar dados
         await this.dataInitializer.init();
         
@@ -70,6 +84,17 @@ class DoceJardimApp {
         
         // Verificar login
         this.auth.verificarLogin();
+
+        // Enviar vendas feitas sem internet: agora e sempre que a conexão voltar
+        this.vendas.sincronizarPendentes();
+        this.connectionService.addListener((status) => {
+            if (status === 'online') {
+                mostrarToast('Conexão restaurada', 'info');
+                this.vendas.sincronizarPendentes();
+            } else {
+                mostrarToast('Sem internet: vendas serão guardadas no aparelho', 'warning');
+            }
+        });
         
         // Event listeners globais
         this.setupEventListeners();

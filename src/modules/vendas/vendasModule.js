@@ -8,12 +8,13 @@ export class VendasModule {
     constructor(app) {
         this.app = app;
         this.vendas = [];
+        this.sincronizando = false;
     }
 
     async carregar() {
         try {
             if (!connectionService.getStatus()) {
-                this.vendas = await offlineDB.obterTodasVendas() || [];
+                this.vendas = this._prepararVendasLocais(await offlineDB.obterTodasVendas());
                 console.log('📦 Vendas carregadas do cache offline');
                 return this.vendas;
             }
@@ -35,7 +36,7 @@ export class VendasModule {
         } catch (error) {
             console.error('❌ Erro ao carregar vendas:', error);
             try {
-                this.vendas = await offlineDB.obterTodasVendas() || [];
+                this.vendas = this._prepararVendasLocais(await offlineDB.obterTodasVendas());
                 console.log('📦 Vendas carregadas do cache offline (fallback)');
             } catch (offlineError) {
                 console.error('❌ Erro ao carregar do offline:', offlineError);
@@ -49,8 +50,9 @@ export class VendasModule {
         try {
             if (!connectionService.getStatus()) {
                 await offlineDB.salvarVendaOffline(venda);
+                await this._baixarEstoqueLocal(venda);
                 mostrarToast('Venda salva offline', 'info');
-                return true;
+                return 'offline';
             }
 
             const { data, error } = await supabase.from('vendas').insert([venda]).select();
@@ -62,8 +64,9 @@ export class VendasModule {
             console.error('❌ Erro ao registrar venda:', error);
             try {
                 await offlineDB.salvarVendaOffline(venda);
+                await this._baixarEstoqueLocal(venda);
                 mostrarToast('Venda salva offline', 'info');
-                return true;
+                return 'offline';
             } catch (offlineError) {
                 console.error('❌ Erro ao salvar offline:', offlineError);
                 mostrarToast('ERRO: ' + offlineError.message, 'error');
@@ -206,7 +209,7 @@ export class VendasModule {
                     <p><strong>Itens:</strong> ${itens.map(i => `${i.nome} x${i.quantidade}`).join(', ') || '-'}</p>
                     ${cancelada
                         ? `<p style="color:#f44336;font-size:0.85em;">Cancelada por ${venda.cancelada_por || '?'}</p>`
-                        : isAdmin
+                        : (isAdmin && !venda.pendente_envio)
                             ? `<button onclick="app.vendas.cancelarVenda(${venda.id})" 
                                 style="margin-top:8px; background:#f44336; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:0.85em;">
                                 🚫 Cancelar Venda
@@ -218,27 +221,105 @@ export class VendasModule {
         }).join('');
     }
 
+    // ==================== OFFLINE ====================
+
+    _prepararVendasLocais(lista) {
+        return (lista || []).map(v => ({
+            ...v,
+            data_exibicao: formatarDataHoraCorreta(v.data) + ' (aguardando envio)',
+            pendente_envio: true
+        }));
+    }
+
+    // Sem internet o estoque não vai para o servidor: baixa só no aparelho e guarda no cache.
+    // O servidor é atualizado quando a venda for enviada (sincronizarPendentes).
+    async _baixarEstoqueLocal(venda) {
+        try {
+            const itens = JSON.parse(venda.itens || '[]');
+            const lista = this.app.produtos.getProdutos();
+            for (const item of itens) {
+                const produto = lista.find(p => p.id === item.id);
+                if (produto) {
+                    produto.estoque = Math.max(0, (produto.estoque || 0) - (item.quantidade || 1));
+                }
+            }
+            await offlineDB.salvarCacheProdutos(lista);
+        } catch (e) {
+            console.error('Erro ao baixar estoque local:', e);
+        }
+    }
+
+    // Depois de enviar a venda: baixa o estoque e soma o fiado no servidor
+    async _aplicarEfeitosNoServidor(venda) {
+        let itens = [];
+        try { itens = JSON.parse(venda.itens || '[]'); } catch (e) { /* ignora */ }
+
+        for (const item of itens) {
+            try {
+                const { data: produtoAtual } = await supabase
+                    .from('produto').select('estoque').eq('id', item.id).single();
+                if (produtoAtual) {
+                    await supabase.from('produto')
+                        .update({ estoque: Math.max(0, (produtoAtual.estoque || 0) - (item.quantidade || 1)) })
+                        .eq('id', item.id);
+                }
+            } catch (e) {
+                console.error(`Erro ao baixar estoque do produto ${item.id}:`, e);
+            }
+        }
+
+        if (venda.forma_pagamento === 'fiado' && venda.cliente_id) {
+            try {
+                const { data: cliente } = await supabase
+                    .from('clientes').select('saldo_devedor').eq('id', venda.cliente_id).single();
+                const saldo = parseFloat(cliente?.saldo_devedor || 0);
+                await supabase.from('clientes')
+                    .update({ saldo_devedor: saldo + parseFloat(venda.total || 0) })
+                    .eq('id', venda.cliente_id);
+            } catch (e) {
+                console.error('Erro ao atualizar saldo do cliente:', e);
+            }
+        }
+    }
+
     async sincronizarPendentes() {
-        if (!connectionService.getStatus()) return;
+        if (this.sincronizando || !connectionService.getStatus()) return;
+        this.sincronizando = true;
+
         try {
             const vendasPendentes = await offlineDB.obterVendasPendentes();
             if (vendasPendentes.length === 0) return;
 
             console.log(`🔄 Sincronizando ${vendasPendentes.length} vendas...`);
+            let enviadas = 0;
 
-            for (const venda of vendasPendentes) {
+            for (const pendente of vendasPendentes) {
                 try {
+                    // Tira os campos que só existem no aparelho (a tabela do Supabase não tem)
+                    const { id: idLocal, data_offline, sincronizada, ...venda } = pendente;
+
                     const { error } = await supabase.from('vendas').insert([venda]);
                     if (error) throw error;
-                    await offlineDB.marcarVendaSincronizada(venda.id);
+
+                    await offlineDB.marcarVendaSincronizada(idLocal);
+                    await this._aplicarEfeitosNoServidor(venda);
+                    enviadas++;
                 } catch (vendaError) {
                     console.error('❌ Erro ao sincronizar:', vendaError);
                 }
             }
 
-            mostrarToast(`${vendasPendentes.length} vendas sincronizadas!`, 'sucesso');
+            if (enviadas > 0) {
+                mostrarToast(`${enviadas} venda(s) enviada(s) ao servidor!`, 'sucesso');
+                try { await this.app.produtos.carregar(); } catch (e) { /* ignora */ }
+            }
+            if (enviadas < vendasPendentes.length) {
+                mostrarToast(`${vendasPendentes.length - enviadas} venda(s) ainda não puderam ser enviadas`, 'warning');
+            }
         } catch (error) {
             console.error('❌ Erro na sincronização:', error);
+        } finally {
+            this.sincronizando = false;
         }
     }
 }

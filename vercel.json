@@ -1,7 +1,6 @@
 {
   "rewrites": [
     { "source": "/sw.js", "destination": "/sw.js" },
-    { "source": "/service-worker.js", "destination": "/service-worker.js" },
     { "source": "/manifest.json", "destination": "/manifest.json" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
@@ -15,13 +14,6 @@
     },
     {
       "source": "/sw.js",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
-        { "key": "Service-Worker-Allowed", "value": "/" }
-      ]
-    },
-    {
-      "source": "/service-worker.js",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
         { "key": "Service-Worker-Allowed", "value": "/" }

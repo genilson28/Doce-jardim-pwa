@@ -232,8 +232,9 @@ export class UsuariosModule {
             
             if (error) throw error;
             
-            const totalVendas = vendas.length;
-            const totalValor = vendas.reduce((sum, v) => sum + (v.total || 0), 0);
+            const vendasValidas = vendas.filter(v => !v.cancelada);
+            const totalVendas = vendasValidas.length;
+            const totalValor = vendasValidas.reduce((sum, v) => sum + (v.total || 0), 0);
             
             let mensagem = `📊 LOGS DE VENDAS - ${usuario.nome}\n\n`;
             mensagem += `Total de vendas: ${totalVendas}\n`;

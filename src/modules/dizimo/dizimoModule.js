@@ -46,7 +46,7 @@ export class DizimoModule {
 
         const vendasFiltradas = this.app.vendas.vendas.filter(v => {
             const dv = new Date(v.data);
-            return dv >= dataInicio && dv <= dataFim;
+            return !v.cancelada && dv >= dataInicio && dv <= dataFim;
         });
 
         for (const venda of vendasFiltradas) {
