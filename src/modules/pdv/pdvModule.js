@@ -105,7 +105,7 @@ export class PDVModule {
                 <div class="produto-card-footer">
                     <div class="produto-preco-container">
                         <span class="produto-preco-label">Preço</span>
-                        <span class="produto-preco">R$ ${produto.preco?.toFixed(2)}</span>
+                        <span class="produto-preco">R$ ${this.app.produtos.variacoes(produto).map(v => (v.preco || 0).toFixed(2)).join(' / ')}</span>
                     </div>
                     <button class="btn-adicionar" onclick="event.stopPropagation(); app.pdv.adicionarAoCarrinho(${produto.id})">
                         <span class="btn-icon">🛒</span>
@@ -164,9 +164,15 @@ export class PDVModule {
         }
     }
 
-    adicionarAoCarrinho(produtoId) {
+    adicionarAoCarrinho(produtoId, escolhido = false) {
         const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
         if (!produto) return;
+
+        // Sucos da mesma polpa: pergunta sem leite / com leite
+        if (!escolhido && this.app.produtos.variacoes(produto).length > 1) {
+            this.app.produtos.escolherVariacao(produto, (id) => this.adicionarAoCarrinho(id, true));
+            return;
+        }
         
         if (this.app.produtos.estoqueDisponivel(produto) <= 0) {
             mostrarToast('Produto sem estoque!', 'error');

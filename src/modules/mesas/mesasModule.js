@@ -200,7 +200,7 @@ export class MesasModule {
             div.onclick = () => this.adicionarAoCarrinho(produto.id);
             div.innerHTML = `
                 <h4>${produto.nome}</h4>
-                <p>R$ ${produto.preco?.toFixed(2) || '0.00'}</p>
+                <p>R$ ${this.app.produtos.variacoes(produto).map(v => (v.preco || 0).toFixed(2)).join(' / ')}</p>
                 <small>Estoque: ${this.app.produtos.estoqueDisponivel(produto)}</small>
                 <div class="categoria-badge-small">
                     ${getIconeCategoria(produto.categoria)} ${produto.categoria}
@@ -212,9 +212,15 @@ export class MesasModule {
         if (this.app.pagination) this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
     }
 
-    adicionarAoCarrinho(produtoId) {
+    adicionarAoCarrinho(produtoId, escolhido = false) {
         const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
         if (!produto) return;
+
+        // Sucos da mesma polpa: pergunta sem leite / com leite
+        if (!escolhido && this.app.produtos.variacoes(produto).length > 1) {
+            this.app.produtos.escolherVariacao(produto, (id) => this.adicionarAoCarrinho(id, true));
+            return;
+        }
 
         if (this.app.produtos.estoqueDisponivel(produto) <= 0) { mostrarToast('Produto sem estoque!', 'error'); return; }
         if (!this.app.produtos.cabeNoCarrinho(this.carrinho, produtoId)) { mostrarToast('Estoque insuficiente!', 'warning'); return; }

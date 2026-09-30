@@ -266,9 +266,55 @@ export class ProdutosModule {
         return fator > 0 ? fator : 1;
     }
 
-    // Produtos que aparecem no PDV e nas mesas
+    // Produtos que aparecem no PDV e nas mesas.
+    // Sucos da mesma polpa viram 1 card só (o mais barato); ao tocar,
+    // o caixa escolhe a opção (sem leite / com leite).
     getProdutosVenda() {
-        return this.produtos.filter(p => !p.somente_estoque);
+        const vistos = new Set();
+        return this.produtos
+            .filter(p => !p.somente_estoque)
+            .filter(p => {
+                if (!p.produto_base_id) return true;
+                if (vistos.has(p.produto_base_id)) return false;
+                vistos.add(p.produto_base_id);
+                return true;
+            })
+            .map(p => p.produto_base_id ? this.variacoes(p)[0] : p);
+    }
+
+    // Todos os produtos de venda que baixam da mesma base, do mais barato ao mais caro
+    variacoes(produto) {
+        if (!produto?.produto_base_id) return [produto];
+        return this.produtos
+            .filter(p => !p.somente_estoque && p.produto_base_id === produto.produto_base_id)
+            .sort((a, b) => (a.preco || 0) - (b.preco || 0));
+    }
+
+    // Janela para escolher a opção (ex.: sem leite / com leite)
+    escolherVariacao(produto, aoEscolher) {
+        const opcoes = this.variacoes(produto);
+        document.getElementById('modalVariacao')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'modalVariacao';
+        modal.className = 'modal active';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width:420px;">
+                <span class="modal-close" aria-label="Fechar">×</span>
+                <h3 style="margin-bottom:12px;">Escolha a opção</h3>
+                ${opcoes.map(o => `
+                    <button class="btn-primary" data-id="${o.id}"
+                        style="display:flex;justify-content:space-between;width:100%;margin:6px 0;padding:14px 16px;font-size:1rem;">
+                        <span>${o.nome}</span><strong>R$ ${(o.preco || 0).toFixed(2)}</strong>
+                    </button>`).join('')}
+            </div>`;
+        const fechar = () => modal.remove();
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal || e.target.classList.contains('modal-close')) return fechar();
+            const btn = e.target.closest('button[data-id]');
+            if (btn) { fechar(); aoEscolher(Number(btn.dataset.id)); }
+        });
+        document.body.appendChild(modal);
     }
 
     // Produtos que têm estoque próprio (entram em compras e na tela de estoque)
