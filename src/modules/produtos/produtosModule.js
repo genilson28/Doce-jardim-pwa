@@ -89,7 +89,7 @@ export class ProdutosModule {
             div.innerHTML = `
                 <div class="produto-item-info">
                     <h4>${produto.nome}</h4>
-                    <p>Preço: R$ ${produto.preco?.toFixed(2)} | ${this.descricaoEstoque(produto)} | Categoria: ${produto.categoria}</p>
+                    <p>Preço: R$ ${produto.preco?.toFixed(2)}${parseFloat(produto.preco_com_leite) > 0 ? ` (c/ leite R$ ${parseFloat(produto.preco_com_leite).toFixed(2)})` : ''} | ${this.descricaoEstoque(produto)} | Categoria: ${produto.categoria}</p>
                 </div>
                 <div>
                     <button onclick="app.produtos.editar(${produto.id})">✏️ Editar</button>
@@ -107,6 +107,7 @@ export class ProdutosModule {
         const preco = parseFloat(document.getElementById('produtoPreco').value) || 0;
         const categoria = document.getElementById('produtoCategoria').value;
         const vinculo = this.lerVinculo('');
+        vinculo.preco_com_leite = parseFloat(document.getElementById('produtoPrecoLeite').value) || null;
         const estoque = vinculo.produto_base_id ? 0 : parseInt(document.getElementById('produtoEstoque').value);
         
         // Item só de estoque (polpa) pode ficar sem preço de venda
@@ -130,6 +131,7 @@ export class ProdutosModule {
             document.getElementById('produtoCategoria').value = '';
             document.getElementById('produtoBase').value = '';
             document.getElementById('produtoQtdBase').value = '1';
+            document.getElementById('produtoPrecoLeite').value = '';
             document.getElementById('produtoSomenteEstoque').checked = false;
             
             await this.carregar();
@@ -156,6 +158,7 @@ export class ProdutosModule {
         this.preencherSelectBase('editProdutoBase', produto.id);
         document.getElementById('editProdutoBase').value = produto.produto_base_id || '';
         document.getElementById('editProdutoQtdBase').value = produto.qtd_base || 1;
+        document.getElementById('editProdutoPrecoLeite').value = produto.preco_com_leite || '';
         document.getElementById('editProdutoSomenteEstoque').checked = !!produto.somente_estoque;
         this.alternarCampoEstoque('edit');
         
@@ -170,6 +173,7 @@ export class ProdutosModule {
         const preco = parseFloat(document.getElementById('editProdutoPreco').value) || 0;
         const categoria = document.getElementById('editProdutoCategoria').value;
         const vinculo = this.lerVinculo('edit');
+        vinculo.preco_com_leite = parseFloat(document.getElementById('editProdutoPrecoLeite').value) || null;
         const estoque = vinculo.produto_base_id ? 0 : parseInt(document.getElementById('editProdutoEstoque').value);
         
         // Item só de estoque (polpa) pode ficar sem preço de venda
@@ -266,53 +270,47 @@ export class ProdutosModule {
         return fator > 0 ? fator : 1;
     }
 
-    // Produtos que aparecem no PDV e nas mesas.
-    // Sucos da mesma polpa viram 1 card só (o mais barato); ao tocar,
-    // o caixa escolhe a opção (sem leite / com leite).
+    // Produtos que aparecem no PDV e nas mesas
     getProdutosVenda() {
-        const vistos = new Set();
-        return this.produtos
-            .filter(p => !p.somente_estoque)
-            .filter(p => {
-                if (!p.produto_base_id) return true;
-                if (vistos.has(p.produto_base_id)) return false;
-                vistos.add(p.produto_base_id);
-                return true;
-            })
-            .map(p => p.produto_base_id ? this.variacoes(p)[0] : p);
+        return this.produtos.filter(p => !p.somente_estoque);
     }
 
-    // Todos os produtos de venda que baixam da mesma base, do mais barato ao mais caro
-    variacoes(produto) {
-        if (!produto?.produto_base_id) return [produto];
-        return this.produtos
-            .filter(p => !p.somente_estoque && p.produto_base_id === produto.produto_base_id)
-            .sort((a, b) => (a.preco || 0) - (b.preco || 0));
+    // Opções de preço do produto (ex.: suco sem leite / com leite)
+    opcoesPreco(produto) {
+        const opcoes = [{ rotulo: 'Sem leite', preco: produto.preco || 0, com_leite: false }];
+        if (parseFloat(produto.preco_com_leite) > 0) {
+            opcoes.push({ rotulo: 'Com leite', preco: parseFloat(produto.preco_com_leite), com_leite: true });
+        }
+        return opcoes;
     }
 
-    // Janela para escolher a opção (ex.: sem leite / com leite)
-    escolherVariacao(produto, aoEscolher) {
-        const opcoes = this.variacoes(produto);
-        document.getElementById('modalVariacao')?.remove();
+    textoPreco(produto) {
+        return this.opcoesPreco(produto).map(o => (o.preco || 0).toFixed(2)).join(' / ');
+    }
+
+    // Janela para escolher sem leite / com leite
+    escolherOpcao(produto, aoEscolher) {
+        const opcoes = this.opcoesPreco(produto);
+        document.getElementById('modalOpcaoPreco')?.remove();
         const modal = document.createElement('div');
-        modal.id = 'modalVariacao';
+        modal.id = 'modalOpcaoPreco';
         modal.className = 'modal active';
         modal.style.display = 'flex';
         modal.innerHTML = `
             <div class="modal-content" style="max-width:420px;">
                 <span class="modal-close" aria-label="Fechar">×</span>
-                <h3 style="margin-bottom:12px;">Escolha a opção</h3>
-                ${opcoes.map(o => `
-                    <button class="btn-primary" data-id="${o.id}"
+                <h3 style="margin-bottom:12px;">${produto.nome}</h3>
+                ${opcoes.map((o, i) => `
+                    <button class="btn-primary" data-i="${i}"
                         style="display:flex;justify-content:space-between;width:100%;margin:6px 0;padding:14px 16px;font-size:1rem;">
-                        <span>${o.nome}</span><strong>R$ ${(o.preco || 0).toFixed(2)}</strong>
+                        <span>${o.rotulo}</span><strong>R$ ${o.preco.toFixed(2)}</strong>
                     </button>`).join('')}
             </div>`;
         const fechar = () => modal.remove();
         modal.addEventListener('click', (e) => {
             if (e.target === modal || e.target.classList.contains('modal-close')) return fechar();
-            const btn = e.target.closest('button[data-id]');
-            if (btn) { fechar(); aoEscolher(Number(btn.dataset.id)); }
+            const btn = e.target.closest('button[data-i]');
+            if (btn) { fechar(); aoEscolher(opcoes[Number(btn.dataset.i)]); }
         });
         document.body.appendChild(modal);
     }

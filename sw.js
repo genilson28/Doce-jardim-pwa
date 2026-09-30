@@ -1,7 +1,7 @@
 // sw.js - Service Worker do Doce Jardim
 // Para publicar uma nova versão, basta trocar o número em CACHE_VERSION.
 
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 const CACHE_NAME = `doce-jardim-${CACHE_VERSION}`;
 
 // Arquivos do app (funcionam offline logo após a 1ª visita)

@@ -152,8 +152,9 @@ export class RelatorioFinanceiroModule {
                 for (const item of itens) {
                     const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
                     
-                    if (!produtos[item.id]) {
-                        produtos[item.id] = {
+                    const chave = item.id + (item.com_leite ? '-leite' : '');
+                    if (!produtos[chave]) {
+                        produtos[chave] = {
                             nome: item.nome,
                             quantidadeVendida: 0,
                             valorVendido: 0,
@@ -162,12 +163,12 @@ export class RelatorioFinanceiroModule {
                         };
                     }
 
-                    produtos[item.id].quantidadeVendida += item.quantidade;
-                    produtos[item.id].valorVendido += item.preco * item.quantidade;
+                    produtos[chave].quantidadeVendida += item.quantidade;
+                    produtos[chave].valorVendido += item.preco * item.quantidade;
                     
                     const custoUnit = produto ? this.app.produtos.custoUnitario(produto) : 0;
                     if (custoUnit) {
-                        produtos[item.id].custoTotal += custoUnit * item.quantidade;
+                        produtos[chave].custoTotal += custoUnit * item.quantidade;
                     }
                 }
             } catch (e) {

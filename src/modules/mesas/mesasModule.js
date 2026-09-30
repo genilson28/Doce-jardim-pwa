@@ -200,7 +200,7 @@ export class MesasModule {
             div.onclick = () => this.adicionarAoCarrinho(produto.id);
             div.innerHTML = `
                 <h4>${produto.nome}</h4>
-                <p>R$ ${this.app.produtos.variacoes(produto).map(v => (v.preco || 0).toFixed(2)).join(' / ')}</p>
+                <p>R$ ${this.app.produtos.textoPreco(produto)}</p>
                 <small>Estoque: ${this.app.produtos.estoqueDisponivel(produto)}</small>
                 <div class="categoria-badge-small">
                     ${getIconeCategoria(produto.categoria)} ${produto.categoria}
@@ -212,29 +212,32 @@ export class MesasModule {
         if (this.app.pagination) this.app.pagination.renderPaginationControls('paginacaoMesas', this.renderizarProdutos.bind(this));
     }
 
-    adicionarAoCarrinho(produtoId, escolhido = false) {
+    adicionarAoCarrinho(produtoId, opcao = null) {
         const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
         if (!produto) return;
 
-        // Sucos da mesma polpa: pergunta sem leite / com leite
-        if (!escolhido && this.app.produtos.variacoes(produto).length > 1) {
-            this.app.produtos.escolherVariacao(produto, (id) => this.adicionarAoCarrinho(id, true));
+        // Suco com preço com leite: pergunta sem leite / com leite
+        if (!opcao && this.app.produtos.opcoesPreco(produto).length > 1) {
+            this.app.produtos.escolherOpcao(produto, (o) => this.adicionarAoCarrinho(produtoId, o));
             return;
         }
+        const comLeite = !!opcao?.com_leite;
+        const preco = opcao ? opcao.preco : produto.preco;
+        const nome = produto.nome + (comLeite ? ' (com leite)' : '');
 
         if (this.app.produtos.estoqueDisponivel(produto) <= 0) { mostrarToast('Produto sem estoque!', 'error'); return; }
         if (!this.app.produtos.cabeNoCarrinho(this.carrinho, produtoId)) { mostrarToast('Estoque insuficiente!', 'warning'); return; }
 
-        const itemExistente = this.carrinho.find(item => item.id === produtoId);
+        const itemExistente = this.carrinho.find(item => item.id === produtoId && !!item.com_leite === comLeite);
         if (itemExistente) {
             itemExistente.quantidade += 1;
         } else {
-            this.carrinho.push({ id: produto.id, nome: produto.nome, preco: produto.preco, quantidade: 1 });
+            this.carrinho.push({ id: produto.id, nome, preco, quantidade: 1, ...(comLeite ? { com_leite: true } : {}) });
         }
 
         this.atualizarComanda();
         this.salvarComanda();
-        mostrarToast(`${produto.nome} adicionado`, 'sucesso');
+        mostrarToast(`${nome} adicionado`, 'sucesso');
     }
 
     atualizarComanda() {
@@ -244,7 +247,7 @@ export class MesasModule {
         if (this.carrinho.length === 0) {
             comandaItens.innerHTML = '<div class="empty-state">Comanda vazia</div>';
         } else {
-            comandaItens.innerHTML = this.carrinho.map(item => `
+            comandaItens.innerHTML = this.carrinho.map((item, i) => `
                 <div class="carrinho-item">
                     <div class="carrinho-item-info">
                         <h4>${item.nome}</h4>
@@ -252,7 +255,7 @@ export class MesasModule {
                     </div>
                     <div class="carrinho-item-acoes">
                         <span>R$ ${((item.preco || 0) * item.quantidade).toFixed(2)}</span>
-                        <button onclick="app.mesas.removerDoCarrinho(${item.id})">🗑️</button>
+                        <button onclick="app.mesas.removerDoCarrinho(${i})">🗑️</button>
                     </div>
                 </div>
             `).join('');
@@ -262,9 +265,8 @@ export class MesasModule {
         document.getElementById('comandaTotal').textContent = total.toFixed(2);
     }
 
-    removerDoCarrinho(produtoId) {
-        const index = this.carrinho.findIndex(item => item.id === produtoId);
-        if (index !== -1) {
+    removerDoCarrinho(index) {
+        if (index >= 0 && index < this.carrinho.length) {
             this.carrinho.splice(index, 1);
             this.atualizarComanda();
             this.salvarComanda();

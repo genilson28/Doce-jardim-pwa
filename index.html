@@ -522,6 +522,9 @@
                     
                     <label for="produtoPreco" class="sr-only">Preço</label>
                     <input type="number" id="produtoPreco" placeholder="Preço (R$)" step="0.01" min="0" required>
+
+                    <label for="produtoPrecoLeite" class="sr-only">Preço com leite</label>
+                    <input type="number" id="produtoPrecoLeite" placeholder="Preço com leite (R$) — opcional, para sucos" step="0.01" min="0">
                     
                     <label for="produtoBase" class="sr-only">Estoque</label>
                     <select id="produtoBase" onchange="app.produtos.alternarCampoEstoque('')">
@@ -1120,6 +1123,9 @@
             
             <label for="editProdutoPreco" class="sr-only">Preço</label>
             <input type="number" id="editProdutoPreco" placeholder="Preço (R$)" step="0.01" min="0" required>
+
+            <label for="editProdutoPrecoLeite" class="sr-only">Preço com leite</label>
+            <input type="number" id="editProdutoPrecoLeite" placeholder="Preço com leite (R$) — opcional, para sucos" step="0.01" min="0">
             
             <label for="editProdutoBase" class="sr-only">Estoque</label>
             <select id="editProdutoBase" onchange="app.produtos.alternarCampoEstoque('edit')">

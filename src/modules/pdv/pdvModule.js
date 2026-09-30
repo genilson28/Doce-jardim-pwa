@@ -105,7 +105,7 @@ export class PDVModule {
                 <div class="produto-card-footer">
                     <div class="produto-preco-container">
                         <span class="produto-preco-label">Preço</span>
-                        <span class="produto-preco">R$ ${this.app.produtos.variacoes(produto).map(v => (v.preco || 0).toFixed(2)).join(' / ')}</span>
+                        <span class="produto-preco">R$ ${this.app.produtos.textoPreco(produto)}</span>
                     </div>
                     <button class="btn-adicionar" onclick="event.stopPropagation(); app.pdv.adicionarAoCarrinho(${produto.id})">
                         <span class="btn-icon">🛒</span>
@@ -164,15 +164,18 @@ export class PDVModule {
         }
     }
 
-    adicionarAoCarrinho(produtoId, escolhido = false) {
+    adicionarAoCarrinho(produtoId, opcao = null) {
         const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
         if (!produto) return;
 
-        // Sucos da mesma polpa: pergunta sem leite / com leite
-        if (!escolhido && this.app.produtos.variacoes(produto).length > 1) {
-            this.app.produtos.escolherVariacao(produto, (id) => this.adicionarAoCarrinho(id, true));
+        // Suco com preço com leite: pergunta sem leite / com leite
+        if (!opcao && this.app.produtos.opcoesPreco(produto).length > 1) {
+            this.app.produtos.escolherOpcao(produto, (o) => this.adicionarAoCarrinho(produtoId, o));
             return;
         }
+        const comLeite = !!opcao?.com_leite;
+        const preco = opcao ? opcao.preco : produto.preco;
+        const nome = produto.nome + (comLeite ? ' (com leite)' : '');
         
         if (this.app.produtos.estoqueDisponivel(produto) <= 0) {
             mostrarToast('Produto sem estoque!', 'error');
@@ -184,26 +187,26 @@ export class PDVModule {
             return;
         }
         
-        const itemExistente = this.carrinho.find(item => item.id === produtoId);
+        const itemExistente = this.carrinho.find(item => item.id === produtoId && !!item.com_leite === comLeite);
         
         if (itemExistente) {
             itemExistente.quantidade += 1;
         } else {
             this.carrinho.push({
                 id: produto.id,
-                nome: produto.nome,
-                preco: produto.preco,
-                quantidade: 1
+                nome,
+                preco,
+                quantidade: 1,
+                ...(comLeite ? { com_leite: true } : {})
             });
         }
         
         this.atualizarCarrinho();
-        mostrarToast(`${produto.nome} adicionado`, 'sucesso');
+        mostrarToast(`${nome} adicionado`, 'sucesso');
     }
 
-    removerDoCarrinho(produtoId) {
-        const index = this.carrinho.findIndex(item => item.id === produtoId);
-        if (index !== -1) {
+    removerDoCarrinho(index) {
+        if (index >= 0 && index < this.carrinho.length) {
             this.carrinho.splice(index, 1);
             this.atualizarCarrinho();
         }
@@ -216,7 +219,7 @@ export class PDVModule {
         if (this.carrinho.length === 0) {
             carrinhoItens.innerHTML = '<div class="empty-state">Carrinho vazio</div>';
         } else {
-            carrinhoItens.innerHTML = this.carrinho.map(item => `
+            carrinhoItens.innerHTML = this.carrinho.map((item, i) => `
                 <div class="carrinho-item">
                     <div class="carrinho-item-info">
                         <h4>${item.nome}</h4>
@@ -224,7 +227,7 @@ export class PDVModule {
                     </div>
                     <div class="carrinho-item-acoes">
                         <span>R$ ${((item.preco || 0) * item.quantidade).toFixed(2)}</span>
-                        <button onclick="app.pdv.removerDoCarrinho(${item.id})">🗑️</button>
+                        <button onclick="app.pdv.removerDoCarrinho(${i})">🗑️</button>
                     </div>
                 </div>
             `).join('');
