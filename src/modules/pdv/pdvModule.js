@@ -15,7 +15,7 @@ export class PDVModule {
 
     async carregar() {
         await this.app.produtos.carregar();
-        this.app.pagination.setup(this.app.produtos.getProdutos(), 5);
+        this.app.pagination.setup(this.app.produtos.getProdutosVenda(), 5);
         this.app.pagination.currentCategory = 'todas';
         
         const inputPesquisa = document.getElementById('pesquisaPDV');
@@ -50,7 +50,7 @@ export class PDVModule {
         
         const termoPesquisa = document.getElementById('pesquisaPDV')?.value.toLowerCase().trim() || '';
         this.app.pagination.filteredData = this.app.filtering.apply(
-            this.app.produtos.getProdutos(),
+            this.app.produtos.getProdutosVenda(),
             termoPesquisa,
             categoria
         );
@@ -63,7 +63,7 @@ export class PDVModule {
         const termoPesquisa = document.getElementById('pesquisaPDV').value.toLowerCase().trim();
         this.app.pagination.currentPage = 1;
         this.app.pagination.filteredData = this.app.filtering.apply(
-            this.app.produtos.getProdutos(),
+            this.app.produtos.getProdutosVenda(),
             termoPesquisa,
             this.app.pagination.currentCategory || 'todas'
         );
@@ -86,16 +86,17 @@ export class PDVModule {
             const div = document.createElement('div');
             div.className = 'produto-card-pdv';
             
+            const disponivel = this.app.produtos.estoqueDisponivel(produto);
             let estoqueClass = 'estoque-ok';
-            if (produto.estoque === 0) estoqueClass = 'estoque-zero';
-            else if (produto.estoque <= 5) estoqueClass = 'estoque-baixo';
+            if (disponivel <= 0) estoqueClass = 'estoque-zero';
+            else if (disponivel <= 5) estoqueClass = 'estoque-baixo';
             
             div.onclick = () => this.adicionarAoCarrinho(produto.id);
             
             div.innerHTML = `
                 <div class="produto-card-header">
                     <div class="produto-icon">${getIconeCategoria(produto.categoria)}</div>
-                    <div class="produto-estoque-badge ${estoqueClass}">${produto.estoque}</div>
+                    <div class="produto-estoque-badge ${estoqueClass}">${disponivel}</div>
                 </div>
                 <div class="produto-card-body">
                     <h4 class="produto-nome">${produto.nome}</h4>
@@ -167,20 +168,20 @@ export class PDVModule {
         const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
         if (!produto) return;
         
-        if (produto.estoque <= 0) {
+        if (this.app.produtos.estoqueDisponivel(produto) <= 0) {
             mostrarToast('Produto sem estoque!', 'error');
+            return;
+        }
+        
+        if (!this.app.produtos.cabeNoCarrinho(this.carrinho, produtoId)) {
+            mostrarToast('Estoque insuficiente!', 'warning');
             return;
         }
         
         const itemExistente = this.carrinho.find(item => item.id === produtoId);
         
         if (itemExistente) {
-            if (itemExistente.quantidade < produto.estoque) {
-                itemExistente.quantidade += 1;
-            } else {
-                mostrarToast('Estoque insuficiente!', 'warning');
-                return;
-            }
+            itemExistente.quantidade += 1;
         } else {
             this.carrinho.push({
                 id: produto.id,
@@ -396,13 +397,7 @@ export class PDVModule {
 
         if (sucesso) {
             if (!salvaOffline) {
-                for (const item of this.carrinho) {
-                    const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
-                    if (produto) {
-                        produto.estoque -= item.quantidade;
-                        await this.app.produtos.atualizar(produto);
-                    }
-                }
+                await this.app.produtos.movimentarEstoque(this.carrinho, -1);
             }
 
             // Atualizar saldo devedor do cliente se for fiado

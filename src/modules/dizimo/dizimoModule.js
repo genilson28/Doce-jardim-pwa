@@ -57,8 +57,9 @@ export class DizimoModule {
 
                 for (const item of itens) {
                     const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
-                    if (produto && produto.custo_unitario) {
-                        const custoItem = produto.custo_unitario * (item.quantidade || 1);
+                    const custoUnit = produto ? this.app.produtos.custoUnitario(produto) : 0;
+                    if (custoUnit) {
+                        const custoItem = custoUnit * (item.quantidade || 1);
                         custoTotal += custoItem;
                     }
                 }

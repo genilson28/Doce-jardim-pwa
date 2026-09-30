@@ -207,7 +207,7 @@ export class ComprasModule {
         const container = document.getElementById('listaProdutosMultiplos');
         if (!container) return;
 
-        const produtos = this.app.produtos.getProdutos();
+        const produtos = this.app.produtos.getProdutosComEstoque();
         
         if (produtos.length === 0) {
             container.innerHTML = '<div class="empty-state">Nenhum produto cadastrado</div>';

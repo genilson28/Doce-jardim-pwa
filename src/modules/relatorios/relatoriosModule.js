@@ -304,25 +304,7 @@ export class RelatoriosModule {
             let itens = [];
             try { itens = JSON.parse(venda.itens || '[]'); } catch (e) {}
 
-            for (const item of itens) {
-                try {
-                    const { data: produtoAtual } = await supabase
-                        .from('produto')
-                        .select('estoque')
-                        .eq('id', item.id)
-                        .single();
-
-                    if (produtoAtual) {
-                        const novoEstoque = (produtoAtual.estoque || 0) + (item.quantidade || 1);
-                        await supabase
-                            .from('produto')
-                            .update({ estoque: novoEstoque })
-                            .eq('id', item.id);
-                    }
-                } catch (e) {
-                    console.error(`Erro ao restaurar estoque produto ${item.id}:`, e);
-                }
-            }
+            await this.app.produtos.movimentarEstoque(itens, +1);
 
             // Se era fiado, estornar saldo do cliente
             if (venda.forma_pagamento === 'fiado' && venda.cliente_id) {

@@ -8,7 +8,9 @@ export class EstoqueModule {
     }
 
     async listar() {
-        const produtos = await this.app.produtos.carregar();
+        await this.app.produtos.carregar();
+        // Produtos que baixam de outro (ex.: sucos) não têm estoque próprio
+        const produtos = this.app.produtos.getProdutosComEstoque();
 
         if (!produtos || produtos.length === 0) {
             this.renderEmpty();

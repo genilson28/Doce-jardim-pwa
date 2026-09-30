@@ -523,8 +523,19 @@
                     <label for="produtoPreco" class="sr-only">Preço</label>
                     <input type="number" id="produtoPreco" placeholder="Preço (R$)" step="0.01" min="0" required>
                     
+                    <label for="produtoBase" class="sr-only">Estoque</label>
+                    <select id="produtoBase" onchange="app.produtos.alternarCampoEstoque('')">
+                        <option value="">Estoque próprio</option>
+                    </select>
+                    <input type="number" id="produtoQtdBase" placeholder="Qtd baixada por venda" value="1" min="1" step="1" style="display:none" title="Quantas unidades da base saem a cada venda">
+
                     <label for="produtoEstoque" class="sr-only">Estoque</label>
                     <input type="number" id="produtoEstoque" placeholder="Quantidade em estoque" min="0" required>
+
+                    <label id="produtoSomenteEstoqueLabel" style="display:flex;align-items:center;gap:8px;margin:6px 0;">
+                        <input type="checkbox" id="produtoSomenteEstoque" style="width:auto;margin:0;">
+                        Só estoque (ex.: polpa) — não aparece no PDV
+                    </label>
                     
                     <label for="produtoCategoria" class="sr-only">Categoria</label>
                     <select id="produtoCategoria" required>
@@ -1110,8 +1121,19 @@
             <label for="editProdutoPreco" class="sr-only">Preço</label>
             <input type="number" id="editProdutoPreco" placeholder="Preço (R$)" step="0.01" min="0" required>
             
+            <label for="editProdutoBase" class="sr-only">Estoque</label>
+            <select id="editProdutoBase" onchange="app.produtos.alternarCampoEstoque('edit')">
+                <option value="">Estoque próprio</option>
+            </select>
+            <input type="number" id="editProdutoQtdBase" placeholder="Qtd baixada por venda" value="1" min="1" step="1" style="display:none" title="Quantas unidades da base saem a cada venda">
+
             <label for="editProdutoEstoque" class="sr-only">Estoque</label>
             <input type="number" id="editProdutoEstoque" placeholder="Quantidade em estoque" min="0" required>
+
+            <label id="editProdutoSomenteEstoqueLabel" style="display:flex;align-items:center;gap:8px;margin:6px 0;">
+                <input type="checkbox" id="editProdutoSomenteEstoque" style="width:auto;margin:0;">
+                Só estoque (ex.: polpa) — não aparece no PDV
+            </label>
             
             <label for="editProdutoCategoria" class="sr-only">Categoria</label>
             <select id="editProdutoCategoria" required>

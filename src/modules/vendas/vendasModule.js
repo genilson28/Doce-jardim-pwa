@@ -119,25 +119,7 @@ export class VendasModule {
                 console.error('Erro ao parsear itens da venda:', e);
             }
 
-            for (const item of itens) {
-                try {
-                    const { data: produtoAtual } = await supabase
-                        .from('produto')
-                        .select('estoque')
-                        .eq('id', item.id)
-                        .single();
-
-                    if (produtoAtual) {
-                        const novoEstoque = (produtoAtual.estoque || 0) + (item.quantidade || 1);
-                        await supabase
-                            .from('produto')
-                            .update({ estoque: novoEstoque })
-                            .eq('id', item.id);
-                    }
-                } catch (estoqueError) {
-                    console.error(`Erro ao restaurar estoque do produto ${item.id}:`, estoqueError);
-                }
-            }
+            await this.app.produtos.movimentarEstoque(itens, +1);
 
             // Se era fiado, estornar saldo do cliente
             if (venda.forma_pagamento === 'fiado' && venda.cliente_id) {
@@ -236,14 +218,7 @@ export class VendasModule {
     async _baixarEstoqueLocal(venda) {
         try {
             const itens = JSON.parse(venda.itens || '[]');
-            const lista = this.app.produtos.getProdutos();
-            for (const item of itens) {
-                const produto = lista.find(p => p.id === item.id);
-                if (produto) {
-                    produto.estoque = Math.max(0, (produto.estoque || 0) - (item.quantidade || 1));
-                }
-            }
-            await offlineDB.salvarCacheProdutos(lista);
+            await this.app.produtos.baixarEstoqueLocal(itens);
         } catch (e) {
             console.error('Erro ao baixar estoque local:', e);
         }
@@ -254,19 +229,7 @@ export class VendasModule {
         let itens = [];
         try { itens = JSON.parse(venda.itens || '[]'); } catch (e) { /* ignora */ }
 
-        for (const item of itens) {
-            try {
-                const { data: produtoAtual } = await supabase
-                    .from('produto').select('estoque').eq('id', item.id).single();
-                if (produtoAtual) {
-                    await supabase.from('produto')
-                        .update({ estoque: Math.max(0, (produtoAtual.estoque || 0) - (item.quantidade || 1)) })
-                        .eq('id', item.id);
-                }
-            } catch (e) {
-                console.error(`Erro ao baixar estoque do produto ${item.id}:`, e);
-            }
-        }
+        await this.app.produtos.movimentarEstoque(itens, -1);
 
         if (venda.forma_pagamento === 'fiado' && venda.cliente_id) {
             try {

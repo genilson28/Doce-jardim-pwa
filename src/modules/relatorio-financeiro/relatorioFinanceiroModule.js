@@ -106,8 +106,9 @@ export class RelatorioFinanceiroModule {
                 const itens = JSON.parse(venda.itens || '[]');
                 for (const item of itens) {
                     const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
-                    if (produto && produto.custo_unitario) {
-                        custoVendas += produto.custo_unitario * item.quantidade;
+                    const custoUnit = produto ? this.app.produtos.custoUnitario(produto) : 0;
+                    if (custoUnit) {
+                        custoVendas += custoUnit * item.quantidade;
                     }
                 }
             } catch (e) {
@@ -164,8 +165,9 @@ export class RelatorioFinanceiroModule {
                     produtos[item.id].quantidadeVendida += item.quantidade;
                     produtos[item.id].valorVendido += item.preco * item.quantidade;
                     
-                    if (produto && produto.custo_unitario) {
-                        produtos[item.id].custoTotal += produto.custo_unitario * item.quantidade;
+                    const custoUnit = produto ? this.app.produtos.custoUnitario(produto) : 0;
+                    if (custoUnit) {
+                        produtos[item.id].custoTotal += custoUnit * item.quantidade;
                     }
                 }
             } catch (e) {

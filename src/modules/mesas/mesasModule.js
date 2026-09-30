@@ -115,7 +115,7 @@ export class MesasModule {
         await this.app.produtos.carregar();
 
         if (this.app.pagination) {
-            this.app.pagination.setup(this.app.produtos.getProdutos(), 25);
+            this.app.pagination.setup(this.app.produtos.getProdutosVenda(), 25);
         }
 
         this.carrinho = mesa.pedido_atual ? JSON.parse(mesa.pedido_atual) : [];
@@ -163,7 +163,7 @@ export class MesasModule {
         this.app.pagination.currentPage = 1;
         const termoPesquisa = document.getElementById('pesquisaMesas')?.value.toLowerCase().trim() || '';
         this.app.pagination.filteredData = this.app.filtering.apply(
-            this.app.produtos.getProdutos(), termoPesquisa, categoria
+            this.app.produtos.getProdutosVenda(), termoPesquisa, categoria
         );
         this.renderizarProdutos();
     }
@@ -173,7 +173,7 @@ export class MesasModule {
         const termoPesquisa = document.getElementById('pesquisaMesas').value.toLowerCase().trim();
         this.app.pagination.currentPage = 1;
         this.app.pagination.filteredData = this.app.filtering.apply(
-            this.app.produtos.getProdutos(), termoPesquisa,
+            this.app.produtos.getProdutosVenda(), termoPesquisa,
             this.app.pagination.currentCategory || 'todas'
         );
         this.renderizarProdutos();
@@ -185,7 +185,7 @@ export class MesasModule {
 
         let produtosParaExibir = this.app.pagination
             ? this.app.pagination.getPageItems()
-            : this.app.produtos.getProdutos().slice(0, 25);
+            : this.app.produtos.getProdutosVenda().slice(0, 25);
 
         if (produtosParaExibir.length === 0) {
             lista.innerHTML = '<div class="empty-state">Nenhum produto encontrado</div>';
@@ -201,7 +201,7 @@ export class MesasModule {
             div.innerHTML = `
                 <h4>${produto.nome}</h4>
                 <p>R$ ${produto.preco?.toFixed(2) || '0.00'}</p>
-                <small>Estoque: ${produto.estoque || 0}</small>
+                <small>Estoque: ${this.app.produtos.estoqueDisponivel(produto)}</small>
                 <div class="categoria-badge-small">
                     ${getIconeCategoria(produto.categoria)} ${produto.categoria}
                 </div>
@@ -216,12 +216,12 @@ export class MesasModule {
         const produto = this.app.produtos.getProdutos().find(p => p.id === produtoId);
         if (!produto) return;
 
-        if (produto.estoque <= 0) { mostrarToast('Produto sem estoque!', 'error'); return; }
+        if (this.app.produtos.estoqueDisponivel(produto) <= 0) { mostrarToast('Produto sem estoque!', 'error'); return; }
+        if (!this.app.produtos.cabeNoCarrinho(this.carrinho, produtoId)) { mostrarToast('Estoque insuficiente!', 'warning'); return; }
 
         const itemExistente = this.carrinho.find(item => item.id === produtoId);
         if (itemExistente) {
-            if (itemExistente.quantidade < produto.estoque) itemExistente.quantidade += 1;
-            else { mostrarToast('Estoque insuficiente!', 'warning'); return; }
+            itemExistente.quantidade += 1;
         } else {
             this.carrinho.push({ id: produto.id, nome: produto.nome, preco: produto.preco, quantidade: 1 });
         }
@@ -473,10 +473,7 @@ export class MesasModule {
 
         // Atualizar estoque
         if (!salvaOffline) {
-            for (const item of this.carrinho) {
-                const produto = this.app.produtos.getProdutos().find(p => p.id === item.id);
-                if (produto) { produto.estoque -= item.quantidade; await this.app.produtos.atualizar(produto); }
-            }
+            await this.app.produtos.movimentarEstoque(this.carrinho, -1);
         }
 
         // Gerar comprovante de pagamento
